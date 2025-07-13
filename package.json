@@ -1,0 +1,19 @@
+{
+  "name": "peanutbot",
+  "module": "src/index.ts",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "eslint": "^9.31.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "discord.js": "^14.21.0"
+  }
+}

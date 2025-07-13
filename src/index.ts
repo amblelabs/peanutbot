@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ActivityType, ButtonBuilder, ButtonStyle, Client, Events, GatewayIntentBits, MessageFlags, MessageManager } from 'discord.js';
 import config from '../config.json.js';
 import support from './support.ts';
+import wikisearch from './wikisearch.ts';
 
 function getRandomIntInclusive(min: number, max: number): number {
 	min = Math.ceil(min);
@@ -22,7 +23,7 @@ client.once(Events.ClientReady, readyClient => {
 	readyClient.user.setActivity('?help', { type: ActivityType.Watching });
 });
 
-client.on(Events.MessageCreate, message => {
+client.on(Events.MessageCreate, async message => {
 	if (message.content.charAt(0) !== '?') return;
 
 	const command = message.content.substring(1);
@@ -31,36 +32,59 @@ client.on(Events.MessageCreate, message => {
 
 	switch (first) {
 		case "forge":
-			message.reply(config.texts.forge_faq);
+			await message.reply(config.texts.forge_faq);
 			break;
 			
 		case "eta":
-			message.reply(config.texts.eta_text);
+			await message.reply(config.texts.eta_text);
 			break;
 		
 		case "peanut":
-			message.reply({stickers: [pickRandom(config.texts.peanuts)]});
+			await message.reply({stickers: [pickRandom(config.texts.peanuts)]});
 			break;
 
 		case "help":	
-			message.reply({ content: config.texts.help_text })
+			await message.reply({ content: config.texts.help_text })
+			break;
+
+		case "search":
+			const result = await wikisearch.search(command);
+
+			const msgBuilder = [
+				config.texts.searching_header
+			];
+
+			for (const res of result) {
+				const title = res.prefix ?? res.children.title;
+				msgBuilder.push(`- [${title}](<${config.wikisearch.base_url}${res.route}>)`);
+
+				let content = res.children.content;
+
+				if (content.length > config.wikisearch.max_length)
+					content = content.substring(0, config.wikisearch.max_length);
+
+				content = content + '...';
+				msgBuilder.push(`> ${content}\n`);
+			}
+
+			await message.reply(msgBuilder.join('\n'));
 			break;
 
 		default:
 			if (first === "wiki") {
 				if (args[1] === "stargate") {
-					message.reply(config.texts.stargate_wiki);
+					await message.reply(config.texts.stargate_wiki);
 					return;
 				}
 				
-				message.reply(config.texts.ait_wiki);
+				await message.reply(config.texts.ait_wiki);
 			} else if (first === "bug") {
 				if (args[1] === "stargate") {
-					message.reply(config.texts.stargate_bug);
+					await message.reply(config.texts.stargate_bug);
 					return;
 				}
 
-				message.reply(config.texts.ait_bug);
+				await message.reply(config.texts.ait_bug);
 			} else if (first === "support") {
 				const type = args[1] ?? 'ping';
 
@@ -79,18 +103,23 @@ client.on(Events.MessageCreate, message => {
 						const row = new ActionRowBuilder<ButtonBuilder>()
 							.addComponents(confirm, cancel);
 
-						const sent = message.reply({
+						const sent = await message.reply({
 							content: config.texts.ping_support,
 							components: [row],
 						});
 
 						setTimeout(async () => {
-							await (await sent).delete();
+							await sent.delete();
 						}, 5000);
 					break;
 
 					default:
-						support.provideSupport(message);
+						const start = performance.now();
+						const response = await support.provideSupport(message.content);
+						const end = performance.now();
+
+						console.log(`Provided support in ${end - start}ms.`)						
+						await message.reply(response);
 						break;
 				}
 			}
@@ -102,14 +131,14 @@ client.on('interactionCreate', async interaction => {
 
 	if (interaction.customId.startsWith('support/ping/')) {
 		if (interaction.customId.endsWith('cancel')) {
-			interaction.reply({content: 'Cancelled.', flags: [MessageFlags.Ephemeral]});
-			interaction.message.delete();
+			await interaction.reply({content: 'Cancelled.', flags: [MessageFlags.Ephemeral]});
+			await interaction.message.delete();
 		} else if (interaction.customId.endsWith('confirm')) {
 			const ref = await interaction.message.fetchReference();
-			ref.reply(`<@&${config.texts.support_id}>`);
+			await ref.reply(`<@&${config.texts.support_id}>`);
 
-			interaction.reply({content: 'Pinged support!', flags: [MessageFlags.Ephemeral]});
-			interaction.message.delete();
+			await interaction.reply({content: 'Pinged support!', flags: [MessageFlags.Ephemeral]});
+			await interaction.message.delete();
 		}
 	}
 });

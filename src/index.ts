@@ -1,5 +1,6 @@
 import { ActionRowBuilder, ActivityType, ButtonBuilder, ButtonStyle, Client, Events, GatewayIntentBits, MessageFlags, MessageManager } from 'discord.js';
 import config from '../config.json.js';
+import support from './support.ts';
 
 function getRandomIntInclusive(min: number, max: number): number {
 	min = Math.ceil(min);
@@ -87,6 +88,10 @@ client.on(Events.MessageCreate, message => {
 							await (await sent).delete();
 						}, 5000);
 					break;
+
+					default:
+						support.provideSupport(message);
+						break;
 				}
 			}
 	}

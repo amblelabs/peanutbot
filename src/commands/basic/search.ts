@@ -1,7 +1,7 @@
 import type { Message } from "discord.js";
 import config from "~/../config.json";
 import wikisearch from "~/util/wikisearch";
-import type { CmdData } from "~/util/base";
+import type { CmdData, Ctx } from "~/util/base";
 
 async function printSearchResults(query: string): Promise<string> {
     const result = await wikisearch.search(query);
@@ -26,7 +26,7 @@ async function printSearchResults(query: string): Promise<string> {
     return msgBuilder.join('\n');
 }
 
-async function execute(message: Message, args: string[]) {
+async function execute(ctx: Ctx, message: Message, args: string[]) {
     const query = args.join(' ');
     
     const target = message.reference ? await message.fetchReference() : message;

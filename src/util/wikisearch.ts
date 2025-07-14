@@ -73,7 +73,7 @@ async function preloadIndex() {
 
         const crumbData = data[searchUrl];
         if (!crumbData) {
-          logger.warn(`Excluded page ${searchUrl} - will not be included for search result breadcrumb for ${route}`);
+          logger.debug(`Excluded page ${searchUrl} - will not be included for search result breadcrumb for ${route}`);
           continue;
         }
 

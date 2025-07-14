@@ -1,6 +1,6 @@
 import config from "config.json";
 import { AttachmentBuilder, Client, type Message, type SendableChannels } from "discord.js"
-import type { CmdData } from "~/util/base"
+import type { CmdData, Ctx } from "~/util/base"
 import { logger } from "~/util/logger";
 import rnd from "~/util/rnd";
 import wrath from "~/util/angry";
@@ -15,7 +15,7 @@ async function meow(channel: SendableChannels) {
     await channel.send({files: [file]});
 }
 
-async function execute(message: Message, args: string[]) {
+async function execute(ctx: Ctx, message: Message, args: string[]) {
     if (config.fun.meow.enabled && message.channel.isSendable()) {
         const hasRole = message.member?.roles.cache.some(role => role.id === config.fun.meow.force_role);
 
@@ -36,9 +36,9 @@ function randomize(): number {
     return seconds * 1000;
 }
 
-async function setup(client: Client) {
+async function setup(ctx: Ctx) {
     async function f() {
-        const channel = client.channels.cache.get(config.fun.meow.channel);
+        const channel = ctx.client.channels.cache.get(config.fun.meow.channel);
        
         setTimeout(f, randomize());
 

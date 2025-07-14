@@ -1,37 +1,52 @@
 import { ActivityType, AttachmentBuilder, Client, Events, GatewayIntentBits, MessageComponentInteraction } from 'discord.js';
 import config from '../config.json.js';
-import type { Cmd } from './util/base.ts';
+import type { Cmd, Ctx } from './util/base.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from './util/logger.ts';
 import wrath from './util/angry.ts';
+import { Sequelize } from 'sequelize';
 
 // Create a new client instance
 const client = new Client({ 
 	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] 
 });
 
+const dbPath = path.resolve(__dirname, '../database.sqlite');
+
+const sequelize = new Sequelize({
+	dialect: 'sqlite',
+	logging: (sql, timing) => logger.debug(sql),
+	storage: dbPath,
+});
+
 function wakeUp() {
-	sleeping = false;
+	ctx.sleeping = false;
 	client.user?.setStatus('online');
 	client.user?.setActivity('?help', { type: ActivityType.Watching });
 }
 
 function fallAsleep() {
-	sleeping = true;
+	ctx.sleeping = true;
 	client.user?.setStatus('idle');
 	client.user?.setActivity('dreams...', { type: ActivityType.Watching });
 }
 
 client.once(Events.ClientReady, readyClient => {
 	logger.info(`Ready! Logged in as ${readyClient.user.tag}`);
+	
+	sequelize.authenticate();
 	wakeUp();
 });
 
 const commands: Dict<Cmd> = {};
-let sleeping = false;
 
-let lastUse = new Date().getTime();
+const ctx: Ctx = {
+	client: client,
+	sql: sequelize,
+	sleeping: false,
+	lastUse: new Date().getTime(),
+};
 
 const foldersPath = path.join(__dirname, 'commands');
 const commandFolders = fs.readdirSync(foldersPath);
@@ -47,7 +62,7 @@ for (const folder of commandFolders) {
 		// Set a new item in the Collection with the key as the command name and the value as the exported module
 		if (command?.data && command?.execute) {
 			if (command.setup)
-				command.setup(client)
+				command.setup(ctx)
 			
 			commands[command.data.name] = command;
 		} else {
@@ -58,14 +73,14 @@ for (const folder of commandFolders) {
 
 client.on(Events.MessageCreate, async message => {
 	if (message.content.charAt(0) !== '?') {
-		if (sleeping && message.content === message.content.toUpperCase() && message.content.includes('!')) {
+		if (ctx.sleeping && message.content === message.content.toUpperCase() && message.content.includes('!')) {
 			wakeUp();
 			message.channel.send({stickers: [config.fun.fall_asleep.awake_sticker]});
 		}
 		return;
 	}
 
-	lastUse = new Date().getTime();
+	ctx.lastUse = new Date().getTime();
 	
 	const command = message.content.substring(1);
 	const args = command.split(' ');
@@ -88,10 +103,10 @@ client.on(Events.MessageCreate, async message => {
 	const handler = commands[first];
 	
 	async function handleCommand(handler?: Cmd) {
-		if (handler) await handler.execute(message, args.slice(1));
+		if (handler) await handler.execute(ctx, message, args.slice(1));
 	}
 	
-	if (sleeping) {
+	if (ctx.sleeping) {
 		wakeUp();
 		message.channel.send({stickers: [config.fun.fall_asleep.awake_sticker]});
 		message.channel.send('...');
@@ -105,11 +120,11 @@ client.on('interactionCreate', async interaction => {
 	if (!(interaction instanceof MessageComponentInteraction))
 		return;
 
-	if (sleeping) {
+	if (ctx.sleeping) {
 		wakeUp();
 	}
 
-	lastUse = new Date().getTime();
+	ctx.lastUse = new Date().getTime();
 
 	const ic = interaction.customId.indexOf(':');
 	const id = interaction.customId.substring(0, ic);
@@ -117,19 +132,19 @@ client.on('interactionCreate', async interaction => {
 	const handler = commands[id];
 
 	if (handler?.onInteraction) {
-		await handler.onInteraction(interaction);
+		await handler.onInteraction(ctx, interaction);
 	}
 });
 
 function tickMinute() {
 	const now = new Date().getTime();
-	if (now - lastUse > config.fun.fall_asleep.sleep_timer * 60 * 1000) {
+	if (now - ctx.lastUse > config.fun.fall_asleep.sleep_timer * 60 * 1000) {
 		fallAsleep();
 	}
 }
 
 async function tickSleepSticker() {
-	if (sleeping) {
+	if (ctx.sleeping) {
 		const channel = client.channels.cache.get(config.fun.fall_asleep.channel);
 		if (channel?.isSendable())
 			await channel.send({stickers: [config.fun.fall_asleep.sleep_sticker]})

@@ -3,10 +3,10 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Message, MessageComponent
 import support from "~/util/support";
 import search from "./search";
 import config from "config.json";
-import type { CmdData } from "~/util/base";
+import type { CmdData, Ctx } from "~/util/base";
 import { logger } from "~/util/logger";
 
-async function execute(message: Message, args: string[]) {
+async function execute(ctx: Ctx, message: Message, args: string[]) {
     if (!args[0] || args[0] === 'ping') {
         const confirm = new ButtonBuilder()
             .setCustomId('support:ping/confirm')
@@ -45,11 +45,11 @@ async function execute(message: Message, args: string[]) {
     await target.reply(resMsg);
 
     if (!success && config.support.do_wikisearch) {
-        await search.execute(message, args);
+        await search.execute(ctx, message, args);
     }
 }
 
-async function onInteraction(interaction: MessageComponentInteraction<CacheType>) {
+async function onInteraction(ctx: Ctx, interaction: MessageComponentInteraction<CacheType>) {
     if (!interaction.isButton()) return;
 	
     if (interaction.customId.startsWith('support:ping/')) {

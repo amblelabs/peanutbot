@@ -4,24 +4,17 @@ import type { CmdData, Ctx } from "~/util/base"
 import wrath from "~/util/angry";
 
 const data: CmdData = {
-    name: 'play',
+    name: 'pet',
 }
 
 async function play(channel: SendableChannels) {
-    const file = new AttachmentBuilder("http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/peanut_play_1.webm");
+    const file = new AttachmentBuilder("http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/peanut_pet_1.webm");
 
     await channel.send({files: [file]});
 }
 
 async function execute(ctx: Ctx, message: Message, args: string[]) {
-    if (config.fun.play.enabled && message.channel.isSendable()) {
-        const hasRole = message.member?.roles.cache.has(config.fun.play.role);
-        
-        if (!hasRole) {
-            await wrath.sendAngry(message);
-            return;
-        }
-        
+    if (config.fun.pet.enabled && message.channel.isSendable()) {
         await play(message.channel);
     } 
 }

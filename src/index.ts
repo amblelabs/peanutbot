@@ -85,7 +85,7 @@ ctx.client.on(Events.MessageCreate, async message => {
 	const first = args[0];
 
 	if (config.fun.fall_asleep.enabled && first === 'sleep' && message.channel.isSendable()) {
-		const hasRole = message.member?.roles.cache.some(role => role.id === config.fun.fall_asleep.force_role);
+		const hasRole = message.member?.roles.cache.has(config.fun.fall_asleep.force_role);
 		
 		if (!hasRole) {
 			await wrath.sendAngry(message);

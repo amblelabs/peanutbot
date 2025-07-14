@@ -57,7 +57,13 @@ for (const folder of commandFolders) {
 }
 
 client.on(Events.MessageCreate, async message => {
-	if (message.content.charAt(0) !== '?') return;
+	if (message.content.charAt(0) !== '?') {
+		if (sleeping && message.content === message.content.toUpperCase() && message.content.includes('!')) {
+			wakeUp();
+			message.channel.send({stickers: [config.fun.fall_asleep.awake_sticker]});
+		}
+		return;
+	}
 
 	lastUse = new Date().getTime();
 	
@@ -87,7 +93,7 @@ client.on(Events.MessageCreate, async message => {
 	
 	if (sleeping) {
 		wakeUp();
-		message.channel.send({stickers: [config.fun.fall_asleep.sticker]});
+		message.channel.send({stickers: [config.fun.fall_asleep.awake_sticker]});
 		message.channel.send('...');
 		setTimeout(async () => await handleCommand(handler), config.fun.fall_asleep.cmd_delay * 1000);
 	} else {
@@ -122,7 +128,16 @@ function tickMinute() {
 	}
 }
 
-setInterval(tickMinute, 60 * 1000);
+async function tickSleepSticker() {
+	if (sleeping) {
+		const channel = client.channels.cache.get(config.fun.fall_asleep.channel);
+		if (channel?.isSendable())
+			await channel.send({stickers: [config.fun.fall_asleep.sleep_sticker]})
+	}
+}
+
+setInterval(tickMinute, 60 * 1000); // every minute
+setInterval(tickSleepSticker, 60*60*1000); // every hour
 
 // Log in to Discord with your client's token
 client.login(config.token);

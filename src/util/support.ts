@@ -1,4 +1,4 @@
-import config from "../../config.json";
+import config from "config.json";
 
 type SearchResult = [found: boolean, weight: number];
 type SupportResult = [weight: number, message: string];

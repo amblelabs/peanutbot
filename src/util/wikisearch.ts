@@ -1,6 +1,10 @@
-import config from "../config.json";
+import config from "~/../config.json";
 
+/**
+ * Yoinked from hextra by imfing on GitHub.
+ */
 import { Document } from "flexsearch";
+import { logger } from "./logger";
 
 let pageIndex: Document;
 let sectionIndex: Document;
@@ -69,7 +73,7 @@ async function preloadIndex() {
 
         const crumbData = data[searchUrl];
         if (!crumbData) {
-          console.warn('Excluded page', searchUrl, '- will not be included for search result breadcrumb for', route);
+          logger.warn(`Excluded page ${searchUrl} - will not be included for search result breadcrumb for ${route}`);
           continue;
         }
 
@@ -129,7 +133,7 @@ async function preloadIndex() {
    * Performs a search based on the provided query and displays the results.
    * @param {Event} e - The event object.
    */
-  function search(query: string): SearchResult[] {
+  async function search(query: string): Promise<SearchResult[]> {
     const pageResults = pageIndex.search(query, 5, { enrich: true, suggest: true })[0]?.result || [];
 
     const results = [];
@@ -189,7 +193,12 @@ async function preloadIndex() {
     
       return sortedResults as unknown as SearchResult[];
   }
-preloadIndex();
+
+const now = performance.now();
+await preloadIndex();
+const end = performance.now();
+
+logger.debug(`Built index cache in ${end - now}ms.`);
 
 export default {
     search

@@ -1,8 +1,8 @@
-import type { Message } from "discord.js";
-import config from "../config.json";
+import config from "../../config.json";
 
 type SearchResult = [found: boolean, weight: number];
 type SupportResult = [weight: number, message: string];
+type SupportSearchResult = [success: boolean, message: string];
 
 type SupportType = {
     keywords: string[],
@@ -26,8 +26,14 @@ function hasKeyword(content: string, keyword: string): SearchResult {
         return NO_FIND;
     }
 
+    const isOptional = keyword.charAt(0) == '?';
+
+    if (isOptional) {
+        keyword = keyword.substring(1);
+    }
+
     return content.includes(keyword) ? FULL_FIND 
-        : keyword.startsWith('?') ? PARTIAL_FIND : NO_FIND;
+        : isOptional ? PARTIAL_FIND : NO_FIND;
 }
 
 function countKeywords(content: string, keywords: string[], l: (kw: string) => void): number {
@@ -48,7 +54,7 @@ function countKeywords(content: string, keywords: string[], l: (kw: string) => v
     return anyFound ? count : 0;
 }
 
-async function provideSupport(content: string): Promise<string> {
+async function provideSupport(content: string): Promise<SupportSearchResult> {
     let qi = 1;
 
     const results: SupportResult[] = [];
@@ -76,13 +82,13 @@ async function provideSupport(content: string): Promise<string> {
     }
 
     if (results.length == 0) {
-        return config.support.format.header + '\n' 
-            + config.support.format.fail;
+        return [false, config.support.format.header + '\n' 
+            + config.support.format.fail];
     }
 
-    return config.support.format.header + '\n' + results
-            .sort(([a1], [b1]) => b1 - a1)
-            .map(([, v]) => v).join('\n\n');
+    return [true, config.support.format.header + '\n' + results
+            .sort(([a1], [b1]) => b1 - a1).slice(0, 3)
+            .map(([, v]) => v).join('\n\n')];
 }
 
 export default {

@@ -116,7 +116,6 @@ client.on('interactionCreate', async interaction => {
 });
 
 function tickMinute() {
-	logger.debug('ticking');
 	const now = new Date().getTime();
 	if (now - lastUse > config.fun.fall_asleep.sleep_timer * 60 * 1000) {
 		fallAsleep();

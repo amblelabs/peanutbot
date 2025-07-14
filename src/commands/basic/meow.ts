@@ -17,7 +17,7 @@ async function meow(channel: SendableChannels) {
 
 async function execute(ctx: Ctx, message: Message, args: string[]) {
     if (config.fun.meow.enabled && message.channel.isSendable()) {
-        console.log('meow meow meow');
+        logger.info('meow meow meow');
         const hasRole = message.member?.roles.cache.has(config.fun.meow.force_role);
 
         if (!hasRole) {

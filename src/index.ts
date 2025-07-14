@@ -4,6 +4,7 @@ import type { Cmd } from './util/base.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from './util/logger.ts';
+import wrath from './util/angry.ts';
 
 // Create a new client instance
 const client = new Client({ 
@@ -68,8 +69,7 @@ client.on(Events.MessageCreate, async message => {
 		const hasRole = message.member?.roles.cache.some(role => role.id === config.fun.fall_asleep.force_role);
 		
 		if (!hasRole) {
-    		const file = new AttachmentBuilder("http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/angry.png");
-			await message.reply({files: [file]})
+			await wrath.sendAngry(message);
 			return;
 		}
 		

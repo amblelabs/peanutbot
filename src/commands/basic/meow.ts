@@ -3,6 +3,7 @@ import { AttachmentBuilder, Client, type Message, type SendableChannels } from "
 import type { CmdData } from "~/util/base"
 import { logger } from "~/util/logger";
 import rnd from "~/util/rnd";
+import wrath from "~/util/angry";
 
 const data: CmdData = {
     name: 'meow',
@@ -19,8 +20,7 @@ async function execute(message: Message, args: string[]) {
         const hasRole = message.member?.roles.cache.some(role => role.id === config.fun.meow.force_role);
 
         if (!hasRole) {
-    		const file = new AttachmentBuilder("http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/angry.png");
-			await message.reply({files: [file]})
+            await wrath.sendAngry(message);
             return;
         }
 

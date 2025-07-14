@@ -1,6 +1,7 @@
 import config from "config.json";
 import { AttachmentBuilder, type Message, type SendableChannels } from "discord.js"
 import type { CmdData } from "~/util/base"
+import wrath from "~/util/angry";
 
 const data: CmdData = {
     name: 'play',
@@ -17,8 +18,7 @@ async function execute(message: Message, args: string[]) {
         const hasRole = message.member?.roles.cache.some(role => role.id === config.fun.play.role);
         
         if (!hasRole) {
-    		const file = new AttachmentBuilder("http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/angry.png");
-			await message.reply({files: [file]})
+            await wrath.sendAngry(message);
             return;
         }
         

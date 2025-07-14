@@ -1,5 +1,5 @@
 import type { Message } from "discord.js";
-import config from "~/../config.json";
+import config from "config.json";
 import wikisearch from "~/util/wikisearch";
 import type { CmdData, Ctx } from "~/util/base";
 
@@ -40,5 +40,5 @@ const data: CmdData = {
 export default {
     data,
     printSearchResults,
-    execute
+    execute,
 }

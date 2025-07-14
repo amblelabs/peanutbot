@@ -58,7 +58,7 @@ for (const folder of commandFolders) {
 
 	for (const file of commandFiles) {
 		const filePath = path.join(commandsPath, file);
-		const command = (await import(filePath)).default;
+		const command = require(filePath).default;
 		
 		// Set a new item in the Collection with the key as the command name and the value as the exported module
 		if (command?.data && command?.execute) {

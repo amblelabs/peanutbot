@@ -1,4 +1,4 @@
-import config from "~/../config.json";
+import config from "config.json";
 
 /**
  * Yoinked from hextra by imfing on GitHub.
@@ -195,7 +195,7 @@ async function preloadIndex() {
   }
 
 const now = performance.now();
-await preloadIndex();
+preloadIndex();
 const end = performance.now();
 
 logger.debug(`Built index cache in ${end - now}ms.`);

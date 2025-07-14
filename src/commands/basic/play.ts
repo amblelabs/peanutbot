@@ -1,8 +1,6 @@
 import config from "config.json";
-import { AttachmentBuilder, Client, type Message, type SendableChannels } from "discord.js"
+import { AttachmentBuilder, type Message, type SendableChannels } from "discord.js"
 import type { CmdData } from "~/util/base"
-import { logger } from "~/util/logger";
-import rnd from "~/util/rnd";
 
 const data: CmdData = {
     name: 'play',

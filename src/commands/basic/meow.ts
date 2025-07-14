@@ -15,9 +15,17 @@ async function meow(channel: SendableChannels) {
 }
 
 async function execute(message: Message, args: string[]) {
-    if (config.fun.meow.enabled && message.channel.isSendable() 
-        && message.member?.roles.cache.some(role => role.id === config.fun.meow.force_role))
+    if (config.fun.meow.enabled && message.channel.isSendable()) {
+        const hasRole = message.member?.roles.cache.some(role => role.id === config.fun.meow.force_role);
+
+        if (!hasRole) {
+    		const file = new AttachmentBuilder("http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/angry.png");
+			await message.reply({files: [file]})
+            return;
+        }
+
         await meow(message.channel);
+    } 
 }
 
 function randomize(): number {

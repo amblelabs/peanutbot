@@ -39,8 +39,10 @@ async function execute(message: Message, args: string[]) {
     const [success, resMsg] = await support.provideSupport(args.join(' '));
     const end = performance.now();
 
-    logger.debug(`Provided support in ${end - start}ms.`)						
-    await message.reply(resMsg);
+    logger.debug(`Provided support in ${end - start}ms.`);
+    
+    const target = message.reference ? await message.fetchReference() : message;
+    await target.reply(resMsg);
 
     if (!success && config.support.do_wikisearch) {
         await search.execute(message, args);

@@ -28,7 +28,9 @@ async function printSearchResults(query: string): Promise<string> {
 
 async function execute(message: Message, args: string[]) {
     const query = args.join(' ');
-    await message.reply(await printSearchResults(query));
+    
+    const target = message.reference ? await message.fetchReference() : message;
+    await target.reply(await printSearchResults(query));
 }
 
 const data: CmdData = {

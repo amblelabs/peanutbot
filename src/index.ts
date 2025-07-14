@@ -30,6 +30,9 @@ for (const folder of commandFolders) {
 		
 		// Set a new item in the Collection with the key as the command name and the value as the exported module
 		if (command?.data && command?.execute) {
+			if (command.setup)
+				command.setup(client)
+			
 			commands[command.data.name] = command;
 		} else {
 			logger.warn(`The command at ${filePath} is missing a required "data" and "execute" property.`);

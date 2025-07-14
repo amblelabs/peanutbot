@@ -1,4 +1,4 @@
-import { ActivityType, AttachmentBuilder, Client, Events, GatewayIntentBits, MessageComponentInteraction } from 'discord.js';
+import { ActivityType, Client, Events, GatewayIntentBits, MessageComponentInteraction } from 'discord.js';
 import config from '../config.json.js';
 import type { Cmd, Ctx } from './util/base.ts';
 import fs from 'node:fs';
@@ -8,45 +8,46 @@ import wrath from './util/angry.ts';
 import { Sequelize } from 'sequelize';
 
 // Create a new client instance
-const client = new Client({ 
-	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] 
-});
-
 const dbPath = path.resolve(__dirname, '../database.sqlite');
 
-const sequelize = new Sequelize({
-	dialect: 'sqlite',
-	logging: (sql, timing) => logger.debug(sql),
-	storage: dbPath,
-});
+const ctx: Ctx = {
+	client: new Client({ 
+		intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] 
+	}),
+	sql: new Sequelize({
+		dialect: 'sqlite',
+		logging: (sql) => logger.debug(sql),
+		storage: dbPath,
+	}),
+	sleeping: false,
+	lastUse: new Date().getTime(),
+};
 
 function wakeUp() {
 	ctx.sleeping = false;
-	client.user?.setStatus('online');
-	client.user?.setActivity('?help', { type: ActivityType.Watching });
+	ctx.client.user?.setStatus('online');
+	ctx.client.user?.setActivity('?help', { type: ActivityType.Watching });
 }
 
 function fallAsleep() {
 	ctx.sleeping = true;
-	client.user?.setStatus('idle');
-	client.user?.setActivity('dreams...', { type: ActivityType.Watching });
+	ctx.client.user?.setStatus('idle');
+	ctx.client.user?.setActivity('dreams...', { type: ActivityType.Watching });
 }
 
-client.once(Events.ClientReady, readyClient => {
-	logger.info(`Ready! Logged in as ${readyClient.user.tag}`);
-	
-	sequelize.authenticate();
+ctx.client.once(Events.ClientReady, readyClient => {
+	for (const cmd of Object.values(commands)) {
+		if (cmd?.setup)
+			cmd.setup(ctx);
+	}
+
+	ctx.sql.authenticate();
 	wakeUp();
+	
+	logger.info(`Ready! Logged in as ${readyClient.user.tag}`);
 });
 
 const commands: Dict<Cmd> = {};
-
-const ctx: Ctx = {
-	client: client,
-	sql: sequelize,
-	sleeping: false,
-	lastUse: new Date().getTime(),
-};
 
 const foldersPath = path.join(__dirname, 'commands');
 const commandFolders = fs.readdirSync(foldersPath);
@@ -61,9 +62,6 @@ for (const folder of commandFolders) {
 		
 		// Set a new item in the Collection with the key as the command name and the value as the exported module
 		if (command?.data && command?.execute) {
-			if (command.setup)
-				command.setup(ctx)
-			
 			commands[command.data.name] = command;
 		} else {
 			logger.warn(`The command at ${filePath} is missing a required "data" and "execute" property.`);
@@ -71,7 +69,7 @@ for (const folder of commandFolders) {
 	}
 }
 
-client.on(Events.MessageCreate, async message => {
+ctx.client.on(Events.MessageCreate, async message => {
 	if (message.content.charAt(0) !== '?') {
 		if (ctx.sleeping && message.content === message.content.toUpperCase() && message.content.includes('!')) {
 			wakeUp();
@@ -116,7 +114,7 @@ client.on(Events.MessageCreate, async message => {
 	}
 });
 
-client.on('interactionCreate', async interaction => {
+ctx.client.on('interactionCreate', async interaction => {
 	if (!(interaction instanceof MessageComponentInteraction))
 		return;
 
@@ -145,7 +143,7 @@ function tickMinute() {
 
 async function tickSleepSticker() {
 	if (ctx.sleeping) {
-		const channel = client.channels.cache.get(config.fun.fall_asleep.channel);
+		const channel = ctx.client.channels.cache.get(config.fun.fall_asleep.channel);
 		if (channel?.isSendable())
 			await channel.send({stickers: [config.fun.fall_asleep.sleep_sticker]})
 	}
@@ -155,4 +153,4 @@ setInterval(tickMinute, 60 * 1000); // every minute
 setInterval(tickSleepSticker, 60*60*1000); // every hour
 
 // Log in to Discord with your client's token
-client.login(config.token);
+ctx.client.login(config.token);

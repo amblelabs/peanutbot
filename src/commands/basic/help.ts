@@ -1,5 +1,5 @@
 import config from "config.json";
-import type { Message } from "discord.js";
+import { type Message } from "discord.js";
 import type { CmdData, Ctx } from "~/util/base"
 
 const data: CmdData = {

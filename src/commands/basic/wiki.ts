@@ -12,6 +12,11 @@ async function execute(ctx: Ctx, message: Message, args: string[]) {
         return;
     }
     
+    if (args[0] === 'timeless' || args[0] === 'heroes' || args[0] === 'th') {
+        await message.reply(config.texts.th_wiki);
+        return;
+    }
+    
     await message.reply(config.texts.ait_wiki);
 }
 

@@ -6,7 +6,7 @@ const url = "http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/
 
 async function sendAngry(message: Message) {
     await message.reply(config.fun.wrath_text);
-    await cache.uncache(url, m => message.reply(m));
+    cache.uncache(url, m => message.reply(m));
 }
 
 export default {

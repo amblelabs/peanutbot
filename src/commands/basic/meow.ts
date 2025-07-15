@@ -13,7 +13,7 @@ const data: CmdData = {
 }
 
 async function meow(channel: SendableChannels) {
-    await cache.uncache(url, m => channel.send(m));
+    cache.uncache(url, m => channel.send(m));
 }
 
 async function execute(ctx: Ctx, message: Message, args: string[]) {
@@ -21,11 +21,11 @@ async function execute(ctx: Ctx, message: Message, args: string[]) {
         const hasRole = message.member?.roles.cache.has(config.fun.meow.force_role);
 
         if (!hasRole) {
-            await wrath.sendAngry(message);
+            wrath.sendAngry(message);
             return;
         }
 
-        await meow(message.channel);
+        meow(message.channel);
     } 
 }
 

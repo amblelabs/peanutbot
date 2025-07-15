@@ -1,4 +1,4 @@
-import type { CacheType, Client, Message, MessageComponentInteraction } from "discord.js";
+import type { CacheType, Client, Interaction, Message, MessageComponentInteraction, SharedSlashCommand, SlashCommandBuilder } from "discord.js";
 import type { Sequelize } from "sequelize";
 
 export type CmdData = {
@@ -8,8 +8,9 @@ export type CmdData = {
 export type Cmd = {
     data: CmdData,
     setup?: (ctx: Ctx) => Promise<void> | void,
-    execute: (ctx: Ctx, message: Message, args: string[]) => Promise<void> | void,
-    onInteraction?: (ctx: Ctx, interaction: MessageComponentInteraction<CacheType>) => Promise<void> | void,
+    execute?: (ctx: Ctx, message: Message, args: string[]) => Promise<void> | void,
+    onInteraction?: (ctx: Ctx, interaction: Interaction) => Promise<void> | void,
+    slash?: (builder: SlashCommandBuilder) => SharedSlashCommand,
 };
 
 export type Ctx = {

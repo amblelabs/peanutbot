@@ -1,4 +1,4 @@
-import type { Message } from "discord.js";
+import type { Interaction, Message, SharedSlashCommand, SlashCommandBuilder } from "discord.js";
 import config from "config.json";
 import wikisearch from "~/util/wikisearch";
 import type { CmdData, Ctx } from "~/util/base";
@@ -14,7 +14,7 @@ async function printSearchResults(query: string): Promise<string> {
         const title = res.prefix ?? res.children.title;
         msgBuilder.push(`- [${title}](<${config.wikisearch.base_url}${res.route}>)`);
 
-        let content = res.children.content;
+        let content = res.children.content.trim();
 
         if (content.length > config.wikisearch.max_length)
             content = content.substring(0, config.wikisearch.max_length);
@@ -33,6 +33,22 @@ async function execute(ctx: Ctx, message: Message, args: string[]) {
     await target.reply(await printSearchResults(query));
 }
 
+function slash(builder: SlashCommandBuilder): SharedSlashCommand {
+    return builder.setDescription('Search the wiki.')
+        .addStringOption(option =>
+            option.setName('query')
+                .setRequired(true)
+                .setDescription('Search query.')
+        );
+}
+
+async function onInteraction(ctx: Ctx, interaction: Interaction) {
+    if (!interaction.isChatInputCommand()) return;
+
+    const query = interaction.options.getString('query', true);
+    await interaction.reply(await printSearchResults(query));
+}
+
 async function setup(ctx: Ctx) {
     wikisearch.init();
 }
@@ -44,6 +60,8 @@ const data: CmdData = {
 export default {
     data,
     printSearchResults,
+    slash,
     setup,
+    onInteraction,
     execute,
 }

@@ -1,4 +1,4 @@
-import { ActivityType, Client, Events, GatewayIntentBits, MessageComponentInteraction } from 'discord.js';
+import { ActivityType, Client, Events, GatewayIntentBits, MessageComponentInteraction, REST, Routes, SlashCommandBuilder } from 'discord.js';
 import config from '../config.json.js';
 import type { Cmd, Ctx } from './util/base.ts';
 import fs from 'node:fs';
@@ -48,6 +48,8 @@ ctx.client.once(Events.ClientReady, readyClient => {
 });
 
 const commands: Dict<Cmd> = {};
+const interHandlers: Dict<Cmd> = {};
+const slashCommands: any[] = [];
 
 const foldersPath = path.join(__dirname, 'commands');
 const commandFolders = fs.readdirSync(foldersPath);
@@ -61,13 +63,41 @@ for (const folder of commandFolders) {
 		const command = require(filePath).default;
 		
 		// Set a new item in the Collection with the key as the command name and the value as the exported module
-		if (command?.data && command?.execute) {
-			commands[command.data.name] = command;
+		if (command?.data) {
+			if (command.execute)
+				commands[command.data.name] = command;
+
+			if (command.onInteraction)
+				interHandlers[command.data.name] = command;
+			
+			if (command.slash)
+				slashCommands.push(command.slash(
+					new SlashCommandBuilder().setName(command.data.name)).toJSON());
 		} else {
 			logger.warn(`The command at ${filePath} is missing a required "data" and "execute" property.`);
 		}
 	}
 }
+
+const rest = new REST().setToken(config.token);
+
+// and deploy your commands!
+(async () => {
+	try {
+		logger.info(`Started refreshing application (/) commands.`);
+
+		// The put method is used to fully refresh all commands in the guild with the current set
+		const data = await rest.put(
+			Routes.applicationGuildCommands(config.clientId, config.guildId),
+			{ body: slashCommands },
+		) as any[];
+
+		logger.info(`Successfully reloaded ${data.length} application (/) commands.`);
+	} catch (error) {
+		// And of course, make sure you catch and log any errors!
+		logger.error(error);
+	}
+})();
 
 ctx.client.on(Events.MessageCreate, async message => {
 	if (message.content.charAt(0) !== '?') {
@@ -88,7 +118,7 @@ ctx.client.on(Events.MessageCreate, async message => {
 		const hasRole = message.member?.roles.cache.has(config.fun.fall_asleep.force_role);
 		
 		if (!hasRole) {
-			await wrath.sendAngry(message);
+			wrath.sendAngry(message);
 			return;
 		}
 		
@@ -101,7 +131,7 @@ ctx.client.on(Events.MessageCreate, async message => {
 	const handler = commands[first];
 	
 	async function handleCommand(handler?: Cmd) {
-		if (handler) await handler.execute(ctx, message, args.slice(1));
+		if (handler?.execute) handler.execute(ctx, message, args.slice(1));
 	}
 	
 	if (ctx.sleeping) {
@@ -114,24 +144,26 @@ ctx.client.on(Events.MessageCreate, async message => {
 	}
 });
 
-ctx.client.on('interactionCreate', async interaction => {
-	if (!(interaction instanceof MessageComponentInteraction))
-		return;
-
+ctx.client.on(Events.InteractionCreate, async interaction => {
 	if (ctx.sleeping) {
 		wakeUp();
 	}
 
 	ctx.lastUse = Date.now();
 
-	const ic = interaction.customId.indexOf(':');
-	const id = interaction.customId.substring(0, ic);
-
-	const handler = commands[id];
-
-	if (handler?.onInteraction) {
-		await handler.onInteraction(ctx, interaction);
+	let handlerId: string | undefined;
+	if (interaction.isButton()) {
+		const ic = interaction.customId.indexOf(':');
+		handlerId = interaction.customId.substring(0, ic);
+	} else if (interaction.isChatInputCommand() || interaction.isAutocomplete()) {
+		handlerId = interaction.commandName;
 	}
+
+	if (!handlerId)
+		return;
+
+	let handler = interHandlers[handlerId];
+	if (handler?.onInteraction) handler.onInteraction(ctx, interaction);
 });
 
 function tickMinute() {

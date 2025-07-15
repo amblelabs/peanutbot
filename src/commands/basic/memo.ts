@@ -1,5 +1,5 @@
 import config from "config.json";
-import type { Client, Message } from "discord.js";
+import type { Client, Interaction, Message, SharedSlashCommand, SlashCommandBuilder } from "discord.js";
 import { DataTypes, Model, Op, type CreationOptional, type InferAttributes, type InferCreationAttributes } from "sequelize";
 import type { CmdData, Ctx } from "~/util/base"
 
@@ -18,12 +18,14 @@ class Memos extends Model<InferAttributes<Memos>, InferCreationAttributes<Memos>
     declare timeout: number;
 }
 
-async function execute(ctx: Ctx, message: Message, args: string[]) {
-    const res = regex.exec(args[0]);
+function makeReply(timestamp: string | undefined, owner: string, text: string): string {
+    if (!timestamp)
+        return config.memos.invalid_timestamp;
+    
+    const res = regex.exec(timestamp);
 
     if (!res) {
-        await message.reply(config.memos.invalid_timestamp);
-        return;
+        return config.memos.invalid_timestamp;
     }
 
     try {
@@ -34,20 +36,21 @@ async function execute(ctx: Ctx, message: Message, args: string[]) {
         const totalTime = Date.now() + minutes * 60 * 1000;
 
         Memos.create({
-            owner: message.author.id,
-            text: args.slice(1).join(' '),
+            owner, text,
             timeout: totalTime,
         });
 
-        await message.reply(config.memos.success
+        return config.memos.success
             .replaceAll('$DAYS', res[1] ?? 0)
             .replaceAll('$HOURS', res[2] ?? 0)
-            .replaceAll('$MINUTES', res[3] ?? 0)
-        );
+            .replaceAll('$MINUTES', res[3] ?? 0);
     } catch (error) {
-        await message.reply(config.memos.bad_numbers);
-        return;
+        return config.memos.bad_numbers;
     }
+}
+
+async function execute(ctx: Ctx, message: Message, args: string[]) {
+    await message.reply(makeReply(args[0], message.author.id, args.slice(1).join(' ')));
 }
 
 async function tickMinute(client: Client) {
@@ -67,6 +70,33 @@ async function tickMinute(client: Client) {
 
         memo.destroy();
     });
+}
+
+function slash(builder: SlashCommandBuilder): SharedSlashCommand {
+    return builder.setDescription('Handles, remind me...')
+        .addStringOption(option =>
+            option.setName('timeout')
+                .setDescription('After how much time to send the memo? ([]d[]h[]m format).')
+                .setRequired(true).setAutocomplete(true)
+        ).addStringOption(option =>
+            option.setName('text')
+                .setDescription('What to remind?')
+                .setRequired(true)
+        );
+}
+
+async function onInteraction(ctx: Ctx, interaction: Interaction) {
+    if (interaction.isAutocomplete()) {
+        await interaction.respond([{name: '0d0h0m', value: '0d0h0m'}])
+    }
+    
+    if (!interaction.isChatInputCommand()) return;
+
+    const timeout = interaction.options.getString('timeout', true);
+    const text = interaction.options.getString('text', true);
+
+    console.log(interaction.user.globalName);
+    await interaction.reply(makeReply(timeout, interaction.user.id, text));
 }
 
 async function setup(ctx: Ctx) {
@@ -90,6 +120,8 @@ async function setup(ctx: Ctx) {
 
 export default {
     data,
+    slash,
     execute,
+    onInteraction,
     setup,
 }

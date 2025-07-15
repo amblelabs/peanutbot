@@ -22,7 +22,7 @@ async function uncache(url: string, send: (options: BaseMessageOptions) => Promi
         return;
     }
 
-    return { content: cached[1] };
+    await send({ content: cached[1] });
 }
 
 export default {

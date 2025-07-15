@@ -1,5 +1,5 @@
 import config from "config.json";
-import { type Message, type SendableChannels } from "discord.js"
+import { SharedSlashCommand, SlashCommandBuilder, type Interaction, type Message, type SendableChannels } from "discord.js"
 import type { CmdData, Ctx } from "~/util/base"
 import cache from "~/util/cache";
 
@@ -10,7 +10,7 @@ const data: CmdData = {
 }
 
 async function play(channel: SendableChannels) {
-    await cache.uncache(url, m => channel.send(m));
+    cache.uncache(url, m => channel.send(m));
 }
 
 async function execute(ctx: Ctx, message: Message, args: string[]) {
@@ -19,7 +19,23 @@ async function execute(ctx: Ctx, message: Message, args: string[]) {
     } 
 }
 
+function slash(builder: SlashCommandBuilder): SharedSlashCommand {
+    return builder.setDescription('pet');
+}
+
+async function onInteraction(ctx: Ctx, interaction: Interaction) {
+    if (!interaction.isChatInputCommand() || !config.fun.pet.enabled) return;
+
+    await interaction.deferReply();
+    await interaction.deleteReply();
+
+    if (interaction.channel?.isSendable())
+        await play(interaction.channel);
+}
+
 export default {
     data,
+    slash,
     execute,
+    onInteraction,
 }

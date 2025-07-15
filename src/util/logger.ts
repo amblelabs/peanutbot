@@ -1,7 +1,23 @@
 import config from 'config.json';
-import loggerBuilder from 'pino';
-import pretty from 'pino-pretty';
+import loggerBuilder, { pino } from 'pino';
 
-export const logger = loggerBuilder({
-    level: config.logging || 'debug',
-}, pretty({}));
+const start = new Date();
+
+const transport = pino.transport({
+    targets: [
+        {
+            level: config.logging || 'debug',
+            target: 'pino-pretty',
+            options: {
+                colorize: false,
+                destination: `logs/${start.getFullYear()}-${start.getMonth()}-${start.getDay()}-${start.getHours()}-${start.getMinutes()}.log`,
+            },
+        },
+        {
+            level: config.logging || 'debug',
+            target: 'pino-pretty',
+        },
+    ]
+});
+
+export const logger = loggerBuilder(transport);

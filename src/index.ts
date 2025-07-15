@@ -20,7 +20,7 @@ const ctx: Ctx = {
 		storage: dbPath,
 	}),
 	sleeping: false,
-	lastUse: new Date().getTime(),
+	lastUse: Date.now(),
 };
 
 function wakeUp() {
@@ -78,7 +78,7 @@ ctx.client.on(Events.MessageCreate, async message => {
 		return;
 	}
 
-	ctx.lastUse = new Date().getTime();
+	ctx.lastUse = Date.now();
 	
 	const command = message.content.substring(1);
 	const args = command.split(' ');
@@ -122,7 +122,7 @@ ctx.client.on('interactionCreate', async interaction => {
 		wakeUp();
 	}
 
-	ctx.lastUse = new Date().getTime();
+	ctx.lastUse = Date.now();
 
 	const ic = interaction.customId.indexOf(':');
 	const id = interaction.customId.substring(0, ic);
@@ -135,7 +135,7 @@ ctx.client.on('interactionCreate', async interaction => {
 });
 
 function tickMinute() {
-	const now = new Date().getTime();
+	const now = Date.now();
 	if (now - ctx.lastUse > config.fun.fall_asleep.sleep_timer * 60 * 1000) {
 		fallAsleep();
 	}
@@ -148,6 +148,14 @@ async function tickSleepSticker() {
 			await channel.send({stickers: [config.fun.fall_asleep.sleep_sticker]})
 	}
 }
+
+process.on('uncaughtException', (err) => {
+	logger.fatal('Uncaught Exception:');
+	logger.fatal(err);
+	
+	// Perform cleanup, log the error, send alerts, etc.
+	process.exit(1); // Exit the process after handling
+});
 
 setInterval(tickMinute, 60 * 1000); // every minute
 setInterval(tickSleepSticker, 60*60*1000); // every hour

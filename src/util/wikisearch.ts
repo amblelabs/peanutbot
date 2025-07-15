@@ -194,12 +194,15 @@ async function preloadIndex() {
       return sortedResults as unknown as SearchResult[];
   }
 
-const now = performance.now();
-preloadIndex();
-const end = performance.now();
+async function init() {
+  const now = performance.now();
+  const _ = await preloadIndex();
+  const end = performance.now();
 
-logger.debug(`Built index cache in ${end - now}ms.`);
+  logger.info(`Built index cache in ${end - now}ms.`);
+}
 
 export default {
-    search
+    search,
+    init,
 };

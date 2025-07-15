@@ -2,15 +2,16 @@ import config from "config.json";
 import { AttachmentBuilder, type Message, type SendableChannels } from "discord.js"
 import type { CmdData, Ctx } from "~/util/base"
 import wrath from "~/util/angry";
+import cache from "~/util/cache";
+
+const url = "http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/peanut_play_1.webm";
 
 const data: CmdData = {
     name: 'play',
 }
 
 async function play(channel: SendableChannels) {
-    const file = new AttachmentBuilder("http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/peanut_play_1.webm");
-
-    await channel.send({files: [file]});
+    await cache.uncache(url, m => channel.send(m));
 }
 
 async function execute(ctx: Ctx, message: Message, args: string[]) {

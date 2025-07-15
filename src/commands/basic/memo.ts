@@ -31,7 +31,7 @@ async function execute(ctx: Ctx, message: Message, args: string[]) {
         const hours = parseInt(res[2] ?? 0) + days * 24;
         const minutes = parseInt(res[3] ?? 0) + hours * 60;
         
-        const totalTime = new Date().getTime() + minutes * 60 * 1000;
+        const totalTime = Date.now() + minutes * 60 * 1000;
 
         Memos.create({
             owner: message.author.id,
@@ -51,7 +51,7 @@ async function execute(ctx: Ctx, message: Message, args: string[]) {
 }
 
 async function tickMinute(client: Client) {
-    const now = new Date().getTime();
+    const now = Date.now();
 
     const results = await Memos.findAll({
         where: { 

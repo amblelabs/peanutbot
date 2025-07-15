@@ -33,6 +33,10 @@ async function execute(ctx: Ctx, message: Message, args: string[]) {
     await target.reply(await printSearchResults(query));
 }
 
+async function setup(ctx: Ctx) {
+    wikisearch.init();
+}
+
 const data: CmdData = {
     name: 'search',
 };
@@ -40,5 +44,6 @@ const data: CmdData = {
 export default {
     data,
     printSearchResults,
+    setup,
     execute,
 }

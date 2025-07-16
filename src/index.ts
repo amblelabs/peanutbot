@@ -21,19 +21,29 @@ const ctx: Ctx = {
 	}),
 	sleeping: false,
 	lastUse: Date.now(),
+
+	wakeUp: () => {
+		ctx.sleeping = false;
+		ctx.client.user?.setStatus('online');
+		ctx.client.user?.setPresence({ 
+			status: 'online', 
+			activities: [{ 
+				name: '?help', 
+				type: ActivityType.Watching 
+			}]
+		});
+	},
+	fallAsleep: () => {
+		ctx.sleeping = true;
+		ctx.client.user?.setPresence({ 
+			status: 'idle', 
+			activities: [{ 
+				name: 'dreams...', 
+				type: ActivityType.Watching 
+			}]
+		});
+	},
 };
-
-function wakeUp() {
-	ctx.sleeping = false;
-	ctx.client.user?.setStatus('online');
-	ctx.client.user?.setActivity('?help', { type: ActivityType.Watching });
-}
-
-function fallAsleep() {
-	ctx.sleeping = true;
-	ctx.client.user?.setStatus('idle');
-	ctx.client.user?.setActivity('dreams...', { type: ActivityType.Watching });
-}
 
 ctx.client.once(Events.ClientReady, readyClient => {
 	for (const cmd of Object.values(commands)) {
@@ -42,7 +52,7 @@ ctx.client.once(Events.ClientReady, readyClient => {
 	}
 
 	ctx.sql.authenticate();
-	wakeUp();
+	ctx.wakeUp();
 	
 	logger.info(`Ready! Logged in as ${readyClient.user.tag}`);
 });
@@ -86,13 +96,15 @@ const rest = new REST().setToken(config.token);
 	try {
 		logger.info(`Started refreshing application (/) commands.`);
 
+		for (const guildId of config.guildId) {
 		// The put method is used to fully refresh all commands in the guild with the current set
 		const data = await rest.put(
-			Routes.applicationGuildCommands(config.clientId, config.guildId),
+			Routes.applicationGuildCommands(config.clientId, guildId),
 			{ body: slashCommands },
 		) as any[];
-
 		logger.info(`Successfully reloaded ${data.length} application (/) commands.`);
+	}
+
 	} catch (error) {
 		// And of course, make sure you catch and log any errors!
 		logger.error(error);
@@ -101,8 +113,9 @@ const rest = new REST().setToken(config.token);
 
 ctx.client.on(Events.MessageCreate, async message => {
 	if (message.content.charAt(0) !== '?') {
-		if (ctx.sleeping && message.content === message.content.toUpperCase() && message.content.includes('!')) {
-			wakeUp();
+		const content = message.content;
+		if (ctx.sleeping && content.length > 1 && content === content.toUpperCase() && content.includes('!')) {
+			ctx.wakeUp();
 			message.channel.send({stickers: [config.fun.fall_asleep.awake_sticker]});
 		}
 		return;
@@ -114,20 +127,6 @@ ctx.client.on(Events.MessageCreate, async message => {
 	const args = command.split(' ');
 	const first = args[0];
 
-	if (config.fun.fall_asleep.enabled && first === 'sleep' && message.channel.isSendable()) {
-		const hasRole = message.member?.roles.cache.has(config.fun.fall_asleep.force_role);
-		
-		if (!hasRole) {
-			wrath.sendAngry(message);
-			return;
-		}
-		
-		fallAsleep();
-
-		await message.reply('_Zzz...._');
-		return;
-	}
-
 	const handler = commands[first];
 	
 	async function handleCommand(handler?: Cmd) {
@@ -135,7 +134,7 @@ ctx.client.on(Events.MessageCreate, async message => {
 	}
 	
 	if (ctx.sleeping) {
-		wakeUp();
+		ctx.wakeUp();
 		message.channel.send({stickers: [config.fun.fall_asleep.awake_sticker]});
 		message.channel.send('...');
 		setTimeout(async () => await handleCommand(handler), config.fun.fall_asleep.cmd_delay * 1000);
@@ -146,7 +145,7 @@ ctx.client.on(Events.MessageCreate, async message => {
 
 ctx.client.on(Events.InteractionCreate, async interaction => {
 	if (ctx.sleeping) {
-		wakeUp();
+		ctx.wakeUp();
 	}
 
 	ctx.lastUse = Date.now();
@@ -169,7 +168,7 @@ ctx.client.on(Events.InteractionCreate, async interaction => {
 function tickMinute() {
 	const now = Date.now();
 	if (now - ctx.lastUse > config.fun.fall_asleep.sleep_timer * 60 * 1000) {
-		fallAsleep();
+		ctx.fallAsleep();
 	}
 }
 
@@ -190,7 +189,7 @@ process.on('uncaughtException', (err) => {
 });
 
 setInterval(tickMinute, 60 * 1000); // every minute
-setInterval(tickSleepSticker, 60*60*1000); // every hour
+setInterval(tickSleepSticker, 60*61*1000); // every hour
 
 // Log in to Discord with your client's token
 ctx.client.login(config.token);

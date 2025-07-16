@@ -18,4 +18,7 @@ export type Ctx = {
     sleeping: boolean,
     sql: Sequelize,
     lastUse: number,
+
+    wakeUp: () => void,
+    fallAsleep: () => void,
 }

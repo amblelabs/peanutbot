@@ -55,9 +55,10 @@ function countKeywords(content: string, keywords: string[], l: (kw: string) => v
 }
 
 async function provideSupport(content: string): Promise<SupportSearchResult> {
-    let qi = 1;
-
     const results: SupportResult[] = [];
+    let qi = 1;
+    
+    content = content.toLowerCase();
 
     for (const [k, { keywords, question, answers }] of SUPPORT_TYPES) {
         const keywordBuilder: string[] = [];

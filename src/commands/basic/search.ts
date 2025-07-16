@@ -2,6 +2,9 @@ import type { Interaction, Message, SharedSlashCommand, SlashCommandBuilder } fr
 import config from "config.json";
 import wikisearch from "~/util/wikisearch";
 import type { CmdData, Ctx } from "~/util/base";
+import fs from "node:fs";
+import path from "node:path";
+import { logger } from "~/util/logger";
 
 async function printSearchResults(query: string): Promise<string> {
     const result = await wikisearch.search(query);
@@ -50,7 +53,16 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
 }
 
 async function setup(ctx: Ctx) {
-    wikisearch.init();
+    try {
+        const resp = await fetch(config.wikisearch.index_url, { signal: AbortSignal.timeout(5000) });
+        const json = await resp.json();
+        wikisearch.preloadIndex(json);
+    } catch (e) {
+        logger.warn('Failed to fetch index, using fallback!');
+        const indexPath = path.resolve(__dirname, '../../../index.json');
+        const data = require(indexPath);
+        wikisearch.preloadIndex(data);
+    }
 }
 
 const data: CmdData = {

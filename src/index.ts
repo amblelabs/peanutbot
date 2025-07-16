@@ -6,6 +6,7 @@ import path from 'node:path';
 import { logger } from './util/logger.ts';
 import wrath from './util/angry.ts';
 import { Sequelize } from 'sequelize';
+import wikisearch from './util/wikisearch.ts';
 
 // Create a new client instance
 const dbPath = path.resolve(__dirname, '../database.sqlite');
@@ -45,7 +46,7 @@ const ctx: Ctx = {
 	},
 };
 
-ctx.client.once(Events.ClientReady, readyClient => {
+ctx.client.once(Events.ClientReady, async readyClient => {
 	for (const cmd of Object.values(commands)) {
 		if (cmd?.setup)
 			cmd.setup(ctx);
@@ -137,7 +138,7 @@ ctx.client.on(Events.MessageCreate, async message => {
 		ctx.wakeUp();
 		message.channel.send({stickers: [config.fun.fall_asleep.awake_sticker]});
 		message.channel.send('...');
-		setTimeout(async () => await handleCommand(handler), config.fun.fall_asleep.cmd_delay * 1000);
+		setTimeout(async () => handleCommand(handler), config.fun.fall_asleep.cmd_delay * 1000);
 	} else {
 		handleCommand(handler);
 	}

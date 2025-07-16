@@ -176,3 +176,5 @@ dist
 
 database.sqlite
 logs/*.log
+index.json
+*.zip

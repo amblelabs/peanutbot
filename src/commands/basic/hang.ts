@@ -2,7 +2,7 @@ import { type Message } from "discord.js";
 import type { CmdData, Ctx } from "~/util/base"
 
 const data: CmdData = {
-    name: 'hang jelly',
+    name: 'hang',
 };
 
 function makeReply(): string {
@@ -10,7 +10,7 @@ function makeReply(): string {
 }
 
 async function execute(ctx: Ctx, message: Message, args: string[]) {
-    await message.reply(makeReply());
+    if (args[0] === 'jelly') await message.reply(makeReply());
 }
 
 export default {

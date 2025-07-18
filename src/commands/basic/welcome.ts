@@ -7,12 +7,7 @@ const data: CmdData = {
 };
 
 async function welcome(member: GuildMember) {
-    const welcomeChannel = member.guild.channels.cache.get(config.texts.welcome_channel);
-    
-    if (!welcomeChannel?.isSendable())
-        return;
-
-    await welcomeChannel.send(config.texts.welcome_message
+    await member.send(config.texts.welcome_message
         .replaceAll('$USER', member.id));
 }
 

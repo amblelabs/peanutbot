@@ -2,6 +2,7 @@ import config from "config.json";
 import type { Client, Interaction, Message, SharedSlashCommand, SlashCommandBuilder } from "discord.js";
 import { DataTypes, Model, Op, type CreationOptional, type InferAttributes, type InferCreationAttributes } from "sequelize";
 import type { CmdData, Ctx } from "~/util/base"
+import { logger } from "~/util/logger";
 
 const regex = new RegExp(
     '(?:([0-9]{1,2}d))?(?:([0-9]{1,2}h))?(?:([0-9]{1,2}m))?'
@@ -95,7 +96,7 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
     const timeout = interaction.options.getString('timeout', true);
     const text = interaction.options.getString('text', true);
 
-    console.log(interaction.user.globalName);
+    logger.debug(`Reminded ${interaction.user.globalName}`);
     await interaction.reply(makeReply(timeout, interaction.user.id, text));
 }
 

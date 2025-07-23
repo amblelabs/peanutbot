@@ -3,6 +3,7 @@ import { AttachmentBuilder, type Message, type SendableChannels } from "discord.
 import type { CmdData, Ctx } from "~/util/base"
 import wrath from "~/util/angry";
 import cache from "~/util/cache";
+import rnd from "~/util/rnd";
 
 const url = "http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/peanut_play_1.webm";
 
@@ -27,7 +28,13 @@ async function execute(ctx: Ctx, message: Message, args: string[]) {
     } 
 }
 
+async function onMessage(ctx: Ctx, message: Message) {
+    if (message.content.toLowerCase().includes("high five") && message.mentions.has(ctx.client.user!))
+        message.reply(rnd.pickRandom(config.fun.highfives));
+}
+
 export default {
     data,
     execute,
+    onMessage,
 }

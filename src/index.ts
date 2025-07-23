@@ -47,7 +47,7 @@ const ctx: Ctx = {
 };
 
 ctx.client.once(Events.ClientReady, async readyClient => {
-	for (const cmd of Object.values(commands)) {
+	for (const cmd of Object.values(handlers)) {
 		if (cmd?.setup)
 			cmd.setup(ctx);
 	}
@@ -58,8 +58,7 @@ ctx.client.once(Events.ClientReady, async readyClient => {
 	logger.info(`Ready! Logged in as ${readyClient.user.tag}`);
 });
 
-const commands: Dict<Cmd> = {};
-const interHandlers: Dict<Cmd> = {};
+const handlers: Dict<Cmd> = {};
 const slashCommands: any[] = [];
 
 const foldersPath = path.join(__dirname, 'commands');
@@ -75,11 +74,7 @@ for (const folder of commandFolders) {
 		
 		// Set a new item in the Collection with the key as the command name and the value as the exported module
 		if (command?.data) {
-			if (command.execute)
-				commands[command.data.name] = command;
-
-			if (command.onInteraction)
-				interHandlers[command.data.name] = command;
+			handlers[command.data.name] = command;
 			
 			if (command.slash)
 				slashCommands.push(command.slash(
@@ -119,6 +114,12 @@ ctx.client.on(Events.MessageCreate, async message => {
 			ctx.wakeUp();
 			message.channel.send({stickers: [config.fun.fall_asleep.awake_sticker]});
 		}
+		
+		for (const handler of Object.values(handlers)) {
+			if (handler?.onMessage)
+				handler.onMessage(ctx, message);
+		}
+
 		return;
 	}
 
@@ -128,7 +129,7 @@ ctx.client.on(Events.MessageCreate, async message => {
 	const args = command.split(' ');
 	const first = args[0];
 
-	const handler = commands[first];
+	const handler = handlers[first];
 	
 	async function handleCommand(handler?: Cmd) {
 		if (handler?.execute) handler.execute(ctx, message, args.slice(1));
@@ -162,7 +163,7 @@ ctx.client.on(Events.InteractionCreate, async interaction => {
 	if (!handlerId)
 		return;
 
-	let handler = interHandlers[handlerId];
+	let handler = handlers[handlerId];
 	if (handler?.onInteraction) handler.onInteraction(ctx, interaction);
 });
 

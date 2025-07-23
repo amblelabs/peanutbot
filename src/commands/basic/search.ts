@@ -26,14 +26,20 @@ async function printSearchResults(query: string): Promise<string> {
         msgBuilder.push(`> ${content}\n`);
     }
 
+    if (msgBuilder.length == 1)
+        return config.texts.searching_empty;
+
     return msgBuilder.join('\n');
+}
+
+async function searchByQuery(ctx: Ctx, message: Message, query: string) {
+    const target = message.reference ? await message.fetchReference() : message;
+    await target.reply(await printSearchResults(query));
 }
 
 async function execute(ctx: Ctx, message: Message, args: string[]) {
     const query = args.join(' ');
-    
-    const target = message.reference ? await message.fetchReference() : message;
-    await target.reply(await printSearchResults(query));
+    searchByQuery(ctx, message, query);
 }
 
 function slash(builder: SlashCommandBuilder): SharedSlashCommand {
@@ -76,4 +82,5 @@ export default {
     setup,
     onInteraction,
     execute,
+    searchByQuery,
 }

@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Message, MessageFlags, SharedSlashCommand, SlashCommandBuilder, type Interaction } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, Message, MessageFlags, SharedSlashCommand, SlashCommandBuilder, type Channel, type Interaction, type Snowflake } from "discord.js";
 
 import support from "~/util/support";
 import search from "./search";
@@ -102,15 +102,57 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
                 const ref = await interaction.message.fetchReference();
                 await ref.reply(ogReply);
                 
-                await interaction.reply({content: 'Pinged support!', flags: [MessageFlags.Ephemeral]});
+                interaction.reply({content: 'Pinged support!', flags: [MessageFlags.Ephemeral]});
             } else {
-                await interaction.reply(ogReply);
+                interaction.reply(ogReply);
             }
-            
-            if (interaction.ephemeral)
-                await interaction.message.delete();
+           
+            if (!interaction.message.flags.has(MessageFlags.Ephemeral)) {
+                try {
+                    interaction.message.delete();
+                } catch (e) { }
+            }
         }
     }
+}
+
+function isFromSupportChanel(channelId: Snowflake): boolean {
+    for (const supportChId of config.support.channels) {
+        if (supportChId === channelId)
+            return true;
+    }
+
+    return false;
+}
+
+async function setup(ctx: Ctx) {
+    ctx.client.on(Events.ThreadCreate, async event => {
+        if (!event.parentId || !isFromSupportChanel(event.parentId))
+            return;
+
+        const message = await event.fetchStarterMessage();
+
+        if (!message)
+            return;
+        
+        const start = performance.now();
+        const [, resMsg] = await support.provideSupport(message.content);
+        const end = performance.now();
+
+        logger.debug(`Provided support in ${end - start}ms.`);
+        
+        const target = message.reference ? await message.fetchReference() : message;
+        await target.reply(resMsg);
+
+        if (config.support.do_wikisearch) {
+            await search.searchByQuery(ctx, message, message.content);
+        }
+
+        await message.reply({
+            content: config.texts.ping_support,
+            components: [makePingButtons()],
+        });
+    });
 }
 
 const data: CmdData = {
@@ -119,6 +161,7 @@ const data: CmdData = {
 
 export default {
     data,
+    setup,
     slash,
     execute,
     onInteraction,

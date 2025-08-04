@@ -2,34 +2,26 @@ import type { Interaction, Message, SharedSlashCommand, SlashCommandBuilder } fr
 import config from "config.json";
 import wikisearch from "~/util/wikisearch";
 import type { CmdData, Ctx } from "~/util/base";
-import fs from "node:fs";
 import path from "node:path";
 import { logger } from "~/util/logger";
+import { trimJoin } from "~/util/breaker";
 
 async function printSearchResults(query: string): Promise<string> {
     const result = await wikisearch.search(query);
-
-    const msgBuilder = [
-        config.texts.searching_header
-    ];
+    const msgBuilder = [];
 
     for (const res of result) {
         const title = res.prefix ?? res.children.title;
-        msgBuilder.push(`- [${title}](<${config.wikisearch.base_url}${res.route}>)`);
+        msgBuilder.push(`\n- [${title}](<${config.wikisearch.base_url}${res.route}>)`);
 
         let content = res.children.content.trim();
-
-        if (content.length > config.wikisearch.max_length)
-            content = content.substring(0, config.wikisearch.max_length);
-
-        content = content + '...';
         msgBuilder.push(`> ${content}\n`);
     }
 
-    if (msgBuilder.length == 1)
+    if (msgBuilder.length == 0)
         return config.texts.searching_empty;
 
-    return msgBuilder.join('\n');
+    return trimJoin({ texts: msgBuilder, prefix: config.texts.searching_header });
 }
 
 async function searchByQuery(ctx: Ctx, message: Message, query: string) {

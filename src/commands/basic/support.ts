@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, Message, MessageFlags, SharedSlashCommand, SlashCommandBuilder, type Channel, type Interaction, type Snowflake } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, cleanContent, Events, Message, MessageFlags, SharedSlashCommand, SlashCommandBuilder, type Channel, type Interaction, type Snowflake } from "discord.js";
 
 import support from "~/util/support";
 import search from "./search";
@@ -72,7 +72,7 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
                 components: [makePingButtons()],
                 flags: [MessageFlags.Ephemeral],
             });
-        } else if (subcommand === 'search') {
+        } else if (subcommand === 'search' && interaction.channel) {
             const query = interaction.options.getString('query', true);
     
             const start = performance.now();
@@ -86,7 +86,7 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
             if (!success && config.support.do_wikisearch) {
                 await interaction.followUp(await search.printSearchResults(query));
                 
-                await interaction.followUp(`Query: ${query}`)
+                await interaction.followUp(`Query: ${cleanContent(query, interaction.channel)}`)
                 await interaction.followUp({
                     content: config.texts.ping_support,
                     components: [makePingButtons()],

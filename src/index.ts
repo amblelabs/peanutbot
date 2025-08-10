@@ -186,9 +186,15 @@ process.on('uncaughtException', (err) => {
 	logger.fatal('Uncaught Exception:');
 	logger.fatal(err);
 	
-	// Perform cleanup, log the error, send alerts, etc.
-	process.exit(1); // Exit the process after handling
+	process.exit(1);
 });
+
+process.on('unhandledRejection', err => {
+	logger.fatal('Unhandled Rejection:');
+	logger.fatal(err);
+
+	process.exit(1);
+})
 
 setInterval(tickMinute, 60 * 1000); // every minute
 setInterval(tickSleepSticker, 60*61*1000); // every hour

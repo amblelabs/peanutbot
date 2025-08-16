@@ -7,7 +7,7 @@ const data: CmdData = {
 };
 
 async function welcome(channel: SendableChannels, member: GuildMember) {
-    await member.send(config.welcome.message
+    await channel.send(config.welcome.message
         .replaceAll('$USER', member.id));
 }
 

@@ -1,6 +1,6 @@
 import config from "config.json";
 import { type Message, type SendableChannels } from "discord.js"
-import type { CmdData, Ctx } from "~/util/base"
+import type { Cmd, CmdData, Ctx } from "~/util/base"
 import wrath from "~/util/angry";
 import cache from "~/util/cache";
 
@@ -14,8 +14,8 @@ async function play(channel: SendableChannels) {
     cache.uncache(url, m => channel.send(m));
 }
 
-async function execute(ctx: Ctx, message: Message, args: string[]) {
-    if (config.fun.play.enabled && message.channel.isSendable()) {
+async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
+    if (config.fun.play.enabled) {
         const hasRole = message.member?.roles.cache.has(config.fun.play.role);
         
         if (!hasRole) {
@@ -23,11 +23,11 @@ async function execute(ctx: Ctx, message: Message, args: string[]) {
             return;
         }
         
-        await play(message.channel);
+        await play(channel);
     } 
 }
 
 export default {
     data,
     execute,
-}
+} as Cmd

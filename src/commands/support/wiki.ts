@@ -1,6 +1,6 @@
 import config from "config.json";
-import type { Interaction, Message, SharedSlashCommand, SlashCommandBuilder } from "discord.js";
-import type { CmdData, Ctx } from "~/util/base"
+import type { Interaction, Message, SendableChannels, SharedSlashCommand, SlashCommandBuilder } from "discord.js";
+import type { Cmd, CmdData, Ctx } from "~/util/base"
 
 const data: CmdData = {
     name: 'wiki',
@@ -18,7 +18,7 @@ function makeReply(type?: string): string {
     return config.texts.ait_wiki;
 }
 
-async function execute(ctx: Ctx, message: Message, args: string[]) {
+async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
     await message.reply(makeReply(args[0]));
 }
 
@@ -43,4 +43,4 @@ export default {
     slash,
     execute,
     onInteraction,
-}
+} as Cmd

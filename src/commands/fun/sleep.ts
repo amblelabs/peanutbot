@@ -1,14 +1,14 @@
 import config from "config.json";
-import type { Message } from "discord.js";
-import type { CmdData, Ctx } from "~/util/base"
+import type { Message, SendableChannels } from "discord.js";
+import type { Cmd, CmdData, Ctx } from "~/util/base"
 import wrath from "~/util/angry";
 
 const data: CmdData = {
     name: 'sleep'
 };
 
-async function execute(ctx: Ctx, message: Message, args: string[]) {
-    if (config.fun.fall_asleep.enabled && message.channel.isSendable()) {
+async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
+    if (config.fun.fall_asleep.enabled) {
 		const hasRole = message.member?.roles.cache.has(config.fun.fall_asleep.force_role);
 		
 		if (!hasRole) {
@@ -25,4 +25,4 @@ async function execute(ctx: Ctx, message: Message, args: string[]) {
 export default {
     data,
     execute,
-}
+} as Cmd

@@ -1,7 +1,7 @@
 import config from "config.json";
-import type { Client, Interaction, Message, SharedSlashCommand, SlashCommandBuilder } from "discord.js";
+import type { Client, Interaction, Message, SendableChannels, SharedSlashCommand, SlashCommandBuilder } from "discord.js";
 import { DataTypes, Model, Op, type CreationOptional, type InferAttributes, type InferCreationAttributes } from "sequelize";
-import type { CmdData, Ctx } from "~/util/base"
+import type { Cmd, CmdData, Ctx } from "~/util/base"
 import { logger } from "~/util/logger";
 
 const regex = new RegExp(
@@ -50,7 +50,7 @@ function makeReply(timestamp: string | undefined, owner: string, text: string): 
     }
 }
 
-async function execute(ctx: Ctx, message: Message, args: string[]) {
+async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
     await message.reply(makeReply(args[0], message.author.id, args.slice(1).join(' ')));
 }
 
@@ -67,7 +67,10 @@ async function tickMinute(client: Client) {
 
     results.forEach(async memo => {
         const user = await client.users.fetch(memo.owner);
-        user?.send(config.memos.reminder.replaceAll('$TEXT', memo.text));
+
+        try {
+            user?.send(config.memos.reminder.replaceAll('$TEXT', memo.text));
+        } catch (e) { }
 
         memo.destroy();
     });
@@ -125,4 +128,4 @@ export default {
     execute,
     onInteraction,
     setup,
-}
+} as Cmd

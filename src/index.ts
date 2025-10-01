@@ -1,4 +1,4 @@
-import { ActivityType, Client, Events, GatewayIntentBits, MessageComponentInteraction, REST, Routes, SlashCommandBuilder } from 'discord.js';
+import { ActivityType, Client, Events, GatewayIntentBits, Message, MessageComponentInteraction, REST, Routes, SlashCommandBuilder } from 'discord.js';
 import config from '../config.json.js';
 import type { Cmd, Ctx } from './util/base.ts';
 import fs from 'node:fs';
@@ -23,7 +23,7 @@ const ctx: Ctx = {
 	sleeping: false,
 	lastUse: Date.now(),
 
-	wakeUp: () => {
+	wakeUp: (message?: Message) => {
 		ctx.sleeping = false;
 		ctx.client.user?.setStatus('online');
 		ctx.client.user?.setPresence({ 
@@ -33,6 +33,9 @@ const ctx: Ctx = {
 				type: ActivityType.Watching 
 			}]
 		});
+
+		if (message && message.channel.isSendable())
+			message.channel.send({stickers: [config.fun.fall_asleep.awake_sticker]});
 	},
 	fallAsleep: () => {
 		ctx.sleeping = true;
@@ -111,8 +114,7 @@ ctx.client.on(Events.MessageCreate, async message => {
 	if (message.content.charAt(0) !== '?') {
 		const content = message.content;
 		if (ctx.sleeping && content.length > 1 && content === content.toUpperCase() && content.includes('!')) {
-			ctx.wakeUp();
-			message.channel.send({stickers: [config.fun.fall_asleep.awake_sticker]});
+			ctx.wakeUp(message);
 		}
 		
 		for (const handler of Object.values(handlers)) {
@@ -124,6 +126,8 @@ ctx.client.on(Events.MessageCreate, async message => {
 	}
 
 	ctx.lastUse = Date.now();
+
+	if (!message.channel.isSendable()) return;
 	
 	const command = message.content.substring(1);
 	const args = command.split(' ');
@@ -132,12 +136,11 @@ ctx.client.on(Events.MessageCreate, async message => {
 	const handler = handlers[first];
 	
 	async function handleCommand(handler?: Cmd) {
-		if (handler?.execute) handler.execute(ctx, message, args.slice(1));
+		if (handler?.execute) handler.execute(ctx, message, message.channel, args.slice(1));
 	}
 	
 	if (ctx.sleeping) {
 		ctx.wakeUp();
-		message.channel.send({stickers: [config.fun.fall_asleep.awake_sticker]});
 		message.channel.send('...');
 		setTimeout(async () => handleCommand(handler), config.fun.fall_asleep.cmd_delay * 1000);
 	} else {

@@ -1,7 +1,7 @@
-import type { Interaction, Message, SharedSlashCommand, SlashCommandBuilder } from "discord.js";
+import type { Interaction, InteractionReplyOptions, Message, MessagePayload, SendableChannels, SharedSlashCommand, SlashCommandBuilder } from "discord.js";
 import config from "config.json";
 import wikisearch from "~/util/wikisearch";
-import type { CmdData, Ctx } from "~/util/base";
+import type { Cmd, CmdData, Ctx } from "~/util/base";
 import path from "node:path";
 import { logger } from "~/util/logger";
 import { trimJoin } from "~/util/breaker";
@@ -29,7 +29,7 @@ async function searchByQuery(ctx: Ctx, message: Message, query: string) {
     await target.reply(await printSearchResults(query));
 }
 
-async function execute(ctx: Ctx, message: Message, args: string[]) {
+async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
     const query = args.join(' ');
     searchByQuery(ctx, message, query);
 }
@@ -69,10 +69,14 @@ const data: CmdData = {
 
 export default {
     data,
-    printSearchResults,
     slash,
     setup,
     onInteraction,
     execute,
+
     searchByQuery,
+    printSearchResults
+} as Cmd & {
+    printSearchResults: (arg0: string) => Promise<string>,
+    searchByQuery: (arg0: Ctx, arg1: Message<true>, arg2: string) => any
 }

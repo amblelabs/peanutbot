@@ -1,9 +1,9 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, cleanContent, Events, Message, MessageFlags, SharedSlashCommand, SlashCommandBuilder, type Channel, type Interaction, type Snowflake } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, cleanContent, Events, Message, MessageFlags, SharedSlashCommand, SlashCommandBuilder, type Channel, type Interaction, type SendableChannels, type Snowflake } from "discord.js";
 
 import support from "~/util/support";
 import search from "./search";
 import config from "config.json";
-import type { CmdData, Ctx } from "~/util/base";
+import type { Cmd, CmdData, Ctx } from "~/util/base";
 import { logger } from "~/util/logger";
 
 function makePingButtons(): ActionRowBuilder<ButtonBuilder> {
@@ -16,7 +16,7 @@ function makePingButtons(): ActionRowBuilder<ButtonBuilder> {
         .addComponents(confirm);
 }
 
-async function execute(ctx: Ctx, message: Message, args: string[]) {
+async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
     async function pingSupport() {
         const sent = await message.reply({
             content: config.texts.ping_support,
@@ -44,9 +44,8 @@ async function execute(ctx: Ctx, message: Message, args: string[]) {
     const target = message.reference ? await message.fetchReference() : message;
     await target.reply(resMsg);
 
-    if (!success && config.support.do_wikisearch) {
-        await search.execute(ctx, message, args);
-        
+    if (!success && config.support.do_wikisearch && search.execute) {
+        await search.execute(ctx, message, channel, args);
         await pingSupport();
     }
 }
@@ -165,4 +164,4 @@ export default {
     slash,
     execute,
     onInteraction,
-}
+} as Cmd

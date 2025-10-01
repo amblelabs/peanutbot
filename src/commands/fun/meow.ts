@@ -1,6 +1,6 @@
 import config from "config.json";
 import { type Message, type SendableChannels } from "discord.js"
-import type { CmdData, Ctx } from "~/util/base"
+import type { Cmd, CmdData, Ctx } from "~/util/base"
 import { logger } from "~/util/logger";
 import rnd from "~/util/rnd";
 import wrath from "~/util/angry";
@@ -16,8 +16,8 @@ async function meow(channel: SendableChannels) {
     cache.uncache(url, m => channel.send(m));
 }
 
-async function execute(ctx: Ctx, message: Message, args: string[]) {
-    if (!ctx.sleeping && config.fun.meow.enabled && message.channel.isSendable()) {
+async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
+    if (!ctx.sleeping && config.fun.meow.enabled) {
         const hasRole = message.member?.roles.cache.has(config.fun.meow.force_role);
 
         if (!hasRole) {
@@ -25,7 +25,7 @@ async function execute(ctx: Ctx, message: Message, args: string[]) {
             return;
         }
 
-        meow(message.channel);
+        meow(channel);
     } 
 }
 
@@ -55,4 +55,4 @@ export default {
     data,
     setup,
     execute,
-}
+} as Cmd

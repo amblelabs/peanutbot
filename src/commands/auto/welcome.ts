@@ -1,6 +1,6 @@
 import config from "config.json";
 import { Message, Events, GuildMember, TextChannel, type SendableChannels } from "discord.js";
-import type { CmdData, Ctx } from "~/util/base";
+import type { Cmd, CmdData, Ctx } from "~/util/base";
 
 const data: CmdData = {
     name: 'welcome',
@@ -11,12 +11,12 @@ async function welcome(channel: SendableChannels, member: GuildMember) {
         .replaceAll('$USER', member.id));
 }
 
-async function execute(ctx: Ctx, message: Message, args: string[]) {
+async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
     if (message.reference) {
         const og = await message.fetchReference();
 
-        if (og.member && message.channel.isSendable())
-            welcome(message.channel, og.member);
+        if (og.member)
+            welcome(channel, og.member);
     }
 }
 
@@ -35,4 +35,4 @@ export default {
     data,
     setup,
     execute,
-}
+} as Cmd

@@ -1,6 +1,6 @@
 import config from "config.json";
 import type { GuildMember, Message } from "discord.js";
-import type { CmdData, Ctx } from "~/util/base";
+import type { Cmd, CmdData, Ctx } from "~/util/base";
 
 const data: CmdData = {
     name: 'internal/arguing',
@@ -46,4 +46,4 @@ async function onMessage(ctx: Ctx, message: Message) {
 export default {
     data,
     onMessage,
-}
+} as Cmd

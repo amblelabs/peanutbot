@@ -1,6 +1,6 @@
 import config from "config.json";
-import type { Interaction, Message, SharedSlashCommand, SlashCommandBuilder } from "discord.js";
-import type { CmdData, Ctx } from "~/util/base"
+import type { Interaction, Message, SendableChannels, SharedSlashCommand, SlashCommandBuilder } from "discord.js";
+import type { Cmd, CmdData, Ctx } from "~/util/base"
 
 const data: CmdData = {
     name: 'forge',
@@ -10,7 +10,7 @@ function makeReply() {
     return config.texts.forge_faq;
 }
 
-async function execute(ctx: Ctx, message: Message, args: string[]) {
+async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
     await message.reply(makeReply());
 }
 
@@ -29,4 +29,4 @@ export default {
     slash,
     execute,
     onInteraction,
-}
+} as Cmd

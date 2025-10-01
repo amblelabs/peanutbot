@@ -1,6 +1,6 @@
 import config from "config.json";
-import { SharedSlashCommand, SlashCommandBuilder, type Interaction, type Message } from "discord.js";
-import type { CmdData, Ctx } from "~/util/base"
+import { SharedSlashCommand, SlashCommandBuilder, type Interaction, type Message, type SendableChannels } from "discord.js";
+import type { Cmd, CmdData, Ctx } from "~/util/base"
 
 const data: CmdData = {
     name: 'help',
@@ -10,7 +10,7 @@ function makeReply(): string {
     return config.texts.help_text;
 }
 
-async function execute(ctx: Ctx, message: Message, args: string[]) {
+async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
     await message.reply(makeReply());
 }
 
@@ -29,4 +29,4 @@ export default {
     slash,
     execute,
     onInteraction,
-}
+} as Cmd

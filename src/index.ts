@@ -227,14 +227,14 @@ async function tickSleepSticker() {
 
 process.on("uncaughtException", (err) => {
   logger.fatal("Uncaught Exception:");
-  logger.fatal(err);
+  logger.error(err);
 
   process.exit(1);
 });
 
 process.on("unhandledRejection", (err) => {
   logger.fatal("Unhandled Rejection:");
-  logger.fatal(err);
+  logger.error(err);
 
   process.exit(1);
 });

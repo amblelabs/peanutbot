@@ -1,4 +1,18 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, cleanContent, Events, Message, MessageFlags, SharedSlashCommand, SlashCommandBuilder, type Channel, type Interaction, type SendableChannels, type Snowflake } from "discord.js";
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  cleanContent,
+  Events,
+  Message,
+  MessageFlags,
+  SharedSlashCommand,
+  SlashCommandBuilder,
+  type Channel,
+  type Interaction,
+  type SendableChannels,
+  type Snowflake,
+} from "discord.js";
 
 import support from "~/util/support";
 import search from "./search";
@@ -7,161 +21,175 @@ import type { Cmd, CmdData, Ctx } from "~/util/base";
 import { logger } from "~/util/logger";
 
 function makePingButtons(): ActionRowBuilder<ButtonBuilder> {
-    const confirm = new ButtonBuilder()
-        .setCustomId('support:ping/confirm')
-        .setLabel('Confirm')
-        .setStyle(ButtonStyle.Success);
+  const confirm = new ButtonBuilder()
+    .setCustomId("support:ping/confirm")
+    .setLabel("Confirm")
+    .setStyle(ButtonStyle.Success);
 
-    return new ActionRowBuilder<ButtonBuilder>()
-        .addComponents(confirm);
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(confirm);
 }
 
-async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
-    async function pingSupport() {
-        const sent = await message.reply({
-            content: config.texts.ping_support,
-            components: [makePingButtons()],
-        });
+async function execute(
+  ctx: Ctx,
+  message: Message,
+  channel: SendableChannels,
+  args: string[],
+) {
+  async function pingSupport() {
+    const sent = await message.reply({
+      content: config.support.ping,
+      components: [makePingButtons()],
+    });
 
-        setTimeout(async () => {
-            try {
-                await sent.delete();
-            } catch(error) { }
-        }, 5000);
-    }
+    setTimeout(async () => {
+      try {
+        await sent.delete();
+      } catch (error) {}
+    }, 5000);
+  }
 
-    if (!args[0] || args[0] === 'ping') {
-        pingSupport();
-        return;
-    }
-    
-    const start = performance.now();
-    const [success, resMsg] = await support.provideSupport(args.join(' '));
-    const end = performance.now();
+  if (!args[0] || args[0] === "ping") {
+    pingSupport();
+    return;
+  }
 
-    logger.debug(`Provided support in ${end - start}ms.`);
-    
-    const target = message.reference ? await message.fetchReference() : message;
-    await target.reply(resMsg);
+  const start = performance.now();
+  const [success, resMsg] = await support.provideSupport(args.join(" "));
+  const end = performance.now();
 
-    if (!success && config.support.do_wikisearch && search.execute) {
-        await search.execute(ctx, message, channel, args);
-        await pingSupport();
-    }
+  logger.debug(`Provided support in ${end - start}ms.`);
+
+  const target = message.reference ? await message.fetchReference() : message;
+  await target.reply(resMsg);
+
+  if (!success && config.support.searchWiki && search.execute) {
+    await search.execute(ctx, message, channel, args);
+    await pingSupport();
+  }
 }
 
 function slash(builder: SlashCommandBuilder): SharedSlashCommand {
-    return builder.setDescription('Provides support.')
-        .addSubcommand(input => input.setName('ping').setDescription('Ping the support team.'))
-        .addSubcommand(input => input.setName('search').setDescription('Search for the solution.')
-            .addStringOption(option =>
-                option.setName('query')
-                    .setRequired(false)
-                    .setDescription('Describe your problem here.')
-        ));
+  return builder
+    .setDescription("Provides support.")
+    .addSubcommand((input) =>
+      input.setName("ping").setDescription("Ping the support team."),
+    )
+    .addSubcommand((input) =>
+      input
+        .setName("search")
+        .setDescription("Search for the solution.")
+        .addStringOption((option) =>
+          option
+            .setName("query")
+            .setRequired(false)
+            .setDescription("Describe your problem here."),
+        ),
+    );
 }
 
 async function onInteraction(ctx: Ctx, interaction: Interaction) {
-    if (interaction.isChatInputCommand()) {
-        const subcommand = interaction.options.getSubcommand();
-        
-        if (subcommand === 'ping') {
-            await interaction.reply({
-                content: config.texts.ping_support, 
-                components: [makePingButtons()],
-                flags: [MessageFlags.Ephemeral],
-            });
-        } else if (subcommand === 'search' && interaction.channel) {
-            const query = interaction.options.getString('query', true);
-    
-            const start = performance.now();
-            const [success, resMsg] = await support.provideSupport(query);
-            const end = performance.now();
+  if (interaction.isChatInputCommand()) {
+    const subcommand = interaction.options.getSubcommand();
 
-            logger.debug(`Provided support in ${end - start}ms.`);
-            
-            await interaction.reply(resMsg);
+    if (subcommand === "ping") {
+      await interaction.reply({
+        content: config.support.ping,
+        components: [makePingButtons()],
+        flags: [MessageFlags.Ephemeral],
+      });
+    } else if (subcommand === "search" && interaction.channel) {
+      const query = interaction.options.getString("query", true);
 
-            if (!success && config.support.do_wikisearch) {
-                await interaction.followUp(await search.printSearchResults(query));
-                
-                await interaction.followUp(`Query: ${cleanContent(query, interaction.channel)}`)
-                await interaction.followUp({
-                    content: config.texts.ping_support,
-                    components: [makePingButtons()],
-                    flags: [MessageFlags.Ephemeral],
-                });
-            }
-        }
-    } else if (interaction.isButton()) {
-        if (interaction.customId === 'support:ping/confirm') {
-            const ogReply = `<@&${config.texts.support_id}>`;
+      const start = performance.now();
+      const [success, resMsg] = await support.provideSupport(query);
+      const end = performance.now();
 
-            if (interaction.message.reference) {
-                const ref = await interaction.message.fetchReference();
-                await ref.reply(ogReply);
-                
-                interaction.reply({content: 'Pinged support!', flags: [MessageFlags.Ephemeral]});
-            } else {
-                interaction.reply(ogReply);
-            }
-           
-            if (!interaction.message.flags.has(MessageFlags.Ephemeral)) {
-                try {
-                    interaction.message.delete();
-                } catch (e) { }
-            }
-        }
+      logger.debug(`Provided support in ${end - start}ms.`);
+
+      await interaction.reply(resMsg);
+
+      if (!success && config.support.searchWiki) {
+        await interaction.followUp(await search.printSearchResults(query));
+
+        await interaction.followUp(
+          `Query: ${cleanContent(query, interaction.channel)}`,
+        );
+        await interaction.followUp({
+          content: config.support.ping,
+          components: [makePingButtons()],
+          flags: [MessageFlags.Ephemeral],
+        });
+      }
     }
+  } else if (interaction.isButton()) {
+    if (interaction.customId === "support:ping/confirm") {
+      const ogReply = `<@&${config.support.role}>`;
+
+      if (interaction.message.reference) {
+        const ref = await interaction.message.fetchReference();
+        await ref.reply(ogReply);
+
+        interaction.reply({
+          content: "Pinged support!",
+          flags: [MessageFlags.Ephemeral],
+        });
+      } else {
+        interaction.reply(ogReply);
+      }
+
+      if (!interaction.message.flags.has(MessageFlags.Ephemeral)) {
+        try {
+          interaction.message.delete();
+        } catch (e) {}
+      }
+    }
+  }
 }
 
 function isFromSupportChanel(channelId: Snowflake): boolean {
-    for (const supportChId of config.support.channels) {
-        if (supportChId === channelId)
-            return true;
-    }
+  for (const supportChId of config.support.channels) {
+    if (supportChId === channelId) return true;
+  }
 
-    return false;
+  return false;
 }
 
 async function setup(ctx: Ctx) {
-    ctx.client.on(Events.ThreadCreate, async event => {
-        if (!event.parentId || !isFromSupportChanel(event.parentId))
-            return;
+  ctx.client.on(Events.ThreadCreate, async (event) => {
+    if (!event.parentId || !isFromSupportChanel(event.parentId)) return;
 
-        const message = await event.fetchStarterMessage();
+    const message = await event.fetchStarterMessage();
 
-        if (!message)
-            return;
-        
-        const start = performance.now();
-        const [, resMsg] = await support.provideSupport(message.content);
-        const end = performance.now();
+    if (!message) return;
 
-        logger.debug(`Provided support in ${end - start}ms.`);
-        
-        const target = message.reference ? await message.fetchReference() : message;
-        await target.reply(resMsg);
+    const start = performance.now();
+    const [, resMsg] = await support.provideSupport(message.content);
+    const end = performance.now();
 
-        if (config.support.do_wikisearch) {
-            await search.searchByQuery(ctx, message, message.content);
-        }
+    logger.debug(`Provided support in ${end - start}ms.`);
 
-        await message.reply({
-            content: config.texts.ping_support,
-            components: [makePingButtons()],
-        });
+    const target = message.reference ? await message.fetchReference() : message;
+    await target.reply(resMsg);
+
+    if (config.support.searchWiki) {
+      await search.searchByQuery(ctx, message, message.content);
+    }
+
+    await message.reply({
+      content: config.support.ping,
+      components: [makePingButtons()],
     });
+  });
 }
 
 const data: CmdData = {
-    name: 'support',
+  name: "support",
 };
 
 export default {
-    data,
-    setup,
-    slash,
-    execute,
-    onInteraction,
-} as Cmd
+  data,
+  setup,
+  slash,
+  execute,
+  onInteraction,
+} as Cmd;

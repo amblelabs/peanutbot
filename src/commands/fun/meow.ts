@@ -1,58 +1,65 @@
 import config from "config.json";
-import { type Message, type SendableChannels } from "discord.js"
-import type { Cmd, CmdData, Ctx } from "~/util/base"
+import { type Message, type SendableChannels } from "discord.js";
+import type { Cmd, CmdData, Ctx } from "~/util/base";
 import { logger } from "~/util/logger";
 import rnd from "~/util/rnd";
 import wrath from "~/util/angry";
 import cache from "~/util/cache";
 
-const url = "http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/peanut_meow_1.webm";
+const url =
+  "http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/peanut_meow_1.webm";
 
 const data: CmdData = {
-    name: 'meow',
-}
+  name: "meow",
+};
 
 async function meow(channel: SendableChannels) {
-    cache.uncache(url, m => channel.send(m));
+  cache.uncache(url, (m) => channel.send(m));
 }
 
-async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
-    if (!ctx.sleeping && config.fun.meow.enabled) {
-        const hasRole = message.member?.roles.cache.has(config.fun.meow.force_role);
+async function execute(
+  ctx: Ctx,
+  message: Message,
+  channel: SendableChannels,
+  args: string[],
+) {
+  if (!ctx.sleeping && config.fun.meow.enabled) {
+    const hasRole = message.member?.roles.cache.has(config.fun.meow.role);
 
-        if (!hasRole) {
-            wrath.sendAngry(message);
-            return;
-        }
+    if (!hasRole) {
+      wrath.sendAngry(message);
+      return;
+    }
 
-        meow(channel);
-    } 
+    meow(channel);
+  }
 }
 
 function randomize(): number {
-    const minutes = rnd.getRandomIntInclusive(config.fun.meow.min, config.fun.meow.max);
-    const seconds = minutes * 60;
-    
-    logger.debug(`Meow scheduled for ${minutes} minutes.`);
-    return seconds * 1000;
+  const minutes = rnd.getRandomIntInclusive(
+    config.fun.meow.min,
+    config.fun.meow.max,
+  );
+  const seconds = minutes * 60;
+
+  logger.debug(`Meow scheduled for ${minutes} minutes.`);
+  return seconds * 1000;
 }
 
 async function setup(ctx: Ctx) {
-    async function f() {
-        const channel = ctx.client.channels.cache.get(config.fun.meow.channel);
-       
-        setTimeout(f, randomize());
+  async function f() {
+    const channel = ctx.client.channels.cache.get(config.fun.meow.channel);
 
-        if (channel?.isSendable())
-            await meow(channel)
-    }
+    setTimeout(f, randomize());
 
-    if (config.fun.meow.enabled)
-        setTimeout(f, randomize());
+    if (channel?.isSendable()) await meow(channel);
+  }
+
+  if (config.fun.meow.enabled) setTimeout(f, randomize());
 }
 
 export default {
-    data,
-    setup,
-    execute,
-} as Cmd
+  data,
+  setup,
+  execute,
+} as Cmd;

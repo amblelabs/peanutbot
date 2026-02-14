@@ -178,3 +178,4 @@ database.sqlite
 logs/*.log
 index.json
 *.zip
+.direnv

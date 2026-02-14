@@ -30,15 +30,15 @@ async function execute(
 }
 
 async function setup(ctx: Ctx) {
-  setTimeout(async () => {
-    ctx.client.on(Events.GuildMemberAdd, async (ctx) => {
+  ctx.client.on(Events.GuildMemberAdd, async (ctx) => {
+    setTimeout(async () => {
       const welcomeChannel = await ctx.guild.channels.fetch(
         config.welcome.channel,
       );
 
       if (welcomeChannel?.isSendable()) await welcome(welcomeChannel, ctx);
-    });
-  }, 10 * 1000);
+    }, 10 * 1000);
+  });
 }
 
 export default {

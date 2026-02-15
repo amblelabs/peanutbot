@@ -5,7 +5,13 @@ import {
   WebhookClient,
   type HexColorString,
 } from "discord.js";
-import { Client } from "stoat.js";
+import {
+  Client,
+  Message as SMessage,
+  Channel as SChannel,
+  Server as SServer,
+  ServerMember as SMember,
+} from "stoat.js";
 import type { Cmd, Ctx } from "~/util/base";
 import { logger } from "~/util/logger";
 
@@ -84,6 +90,35 @@ const dismoji2Stoatmoji = Object.entries(config.bridge.emojis);
 const stoatmoji2Dismoji = dismoji2Stoatmoji.map(([key, val]) => [val, key]);
 const client = new Client();
 
+function appendSlice(a: string, b: string, max: number = 32) {
+  if (a.length + b.length > max) {
+    a = a.slice(0, max - b.length - 1) + "…";
+  }
+  return a + b;
+}
+
+function getStoatAuthor(message: SMessage): string {
+  return message.author?.displayName || message.username || "Unknown";
+}
+
+function getStoatAvatar(message: SMessage): string | undefined {
+  return message.author?.avatarURL || message.avatarURL;
+}
+
+async function getOrFetchMessage(
+  id: string,
+  channel: SChannel | undefined,
+): Promise<SMessage | undefined> {
+  return client.messages.get(id) || channel?.fetchMessage(id);
+}
+
+async function getOrFetchMember(
+  id: string,
+  server: SServer | undefined,
+): Promise<SMember | undefined> {
+  return server!.getMember(id) || server!.fetchMember(id);
+}
+
 export default {
   data: {
     name: "bridge",
@@ -114,9 +149,8 @@ export default {
 
       if (message.replyIds) {
         const replies = await Promise.all(
-          message.replyIds.map(
-            (val) =>
-              client.messages.get(val) || message.channel?.fetchMessage(val),
+          message.replyIds.map((val) =>
+            getOrFetchMessage(val, message.channel),
           ),
         );
 
@@ -126,8 +160,8 @@ export default {
           embeds.push(
             new EmbedBuilder()
               .setAuthor({
-                iconURL: reply.author?.avatarURL || reply.avatarURL,
-                name: reply.author?.displayName || reply.username || "unknown",
+                iconURL: getStoatAvatar(reply),
+                name: getStoatAuthor(reply),
               })
               .setColor(
                 message.roleColour
@@ -141,17 +175,17 @@ export default {
 
       if (message.mentionIds && message.server) {
         const members = await Promise.all(
-          message.mentionIds.map(
-            (mention) =>
-              message.server!.getMember(mention) ||
-              message.server!.fetchMember(mention),
+          message.mentionIds.map((mention) =>
+            getOrFetchMember(mention, message.server),
           ),
         );
 
         for (const member of members) {
+          if (!member) continue;
+
           content = content.replaceAll(
             `<@${member.id.user}>`,
-            `\`@${member?.displayName}\``,
+            `\`@${member.displayName}\``,
           );
         }
       }
@@ -160,25 +194,21 @@ export default {
         await webhook.send({
           content: "-# ↪ Reply:",
           embeds: embeds,
-          avatarURL: message.author.avatarURL || message.avatarURL,
-          username:
-            (message.author.displayName || message.username || "unknown") +
-            " (stoat)",
+          avatarURL: getStoatAvatar(message),
+          username: appendSlice(getStoatAuthor(message), " (stoat)"),
         });
       }
       await webhook.send({
         content: content,
-        avatarURL: message.author.avatarURL || message.avatarURL,
-        username:
-          (message.author.displayName || message.username || "unknown") +
-          " (stoat)",
+        avatarURL: getStoatAvatar(message),
+        username: appendSlice(getStoatAuthor(message), " (stoat)"),
       });
     });
 
-    logger.info("Waiting 10s to start stoat bot...");
+    logger.info("Waiting 5s to start stoat bot...");
     setTimeout(() => {
       client.loginBot(config.bridge.stoat.token);
-    }, 10000);
+    }, 5000);
 
     ctx.client.on(Events.MessageCreate, async (event) => {
       if (event.webhookId || !event.inGuild() || !event.member) return;
@@ -204,8 +234,10 @@ export default {
       if (event.reference) {
         const reply = await event.fetchReference();
 
+        // TODO: use embeds
         content =
-          `Reply to \`@${reply.author.displayName}\`\n` +
+          "*↪ Reply:*\n" +
+          `to \`@${reply.author.displayName}\`\n` +
           reply.content
             .split("\n")
             .map((val) => "> " + val)
@@ -219,7 +251,7 @@ export default {
           content: content,
           masquerade: {
             avatar: event.member.displayAvatarURL(),
-            name: event.member.displayName + " (discord)",
+            name: appendSlice(event.member.displayName, " (discord)"),
             colour: event.member.displayHexColor,
           },
         }),

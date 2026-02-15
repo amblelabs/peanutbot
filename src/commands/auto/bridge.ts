@@ -175,9 +175,10 @@ export default {
       });
     });
 
+    logger.info("Waiting 10s to start stoat bot...");
     setTimeout(() => {
       client.loginBot(config.bridge.stoat.token);
-    }, 2000);
+    }, 10000);
 
     ctx.client.on(Events.MessageCreate, async (event) => {
       if (event.webhookId || !event.inGuild() || !event.member) return;

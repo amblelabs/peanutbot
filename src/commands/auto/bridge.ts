@@ -147,7 +147,7 @@ export default {
 
       if (embeds.length > 0) {
         await webhook.send({
-          content: "Replying to:",
+          content: "-# ↪ Reply:",
           embeds: embeds,
           avatarURL: message.author.avatarURL || message.avatarURL,
           username:

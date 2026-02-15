@@ -1,5 +1,10 @@
 import config from "config.json";
-import { Events, GuildChannel, WebhookClient, type APIEmbed } from "discord.js";
+import {
+  EmbedBuilder,
+  Events,
+  WebhookClient,
+  type HexColorString,
+} from "discord.js";
 import { Client } from "stoat.js";
 import type { Cmd, Ctx } from "~/util/base";
 import { logger } from "~/util/logger";
@@ -105,7 +110,7 @@ export default {
         content = content.replaceAll(stoatmoji, dismoji);
       }
 
-      const embeds: APIEmbed[] = [];
+      const embeds = [];
 
       if (message.replyIds) {
         const replies = await Promise.all(
@@ -118,13 +123,19 @@ export default {
         for (const reply of replies) {
           if (!reply) continue;
 
-          embeds.push({
-            author: {
-              icon_url: message.author.avatarURL || message.avatarURL,
-              name: message.author.displayName || message.username || "unknown",
-            },
-            description: reply.content,
-          });
+          embeds.push(
+            new EmbedBuilder()
+              .setAuthor({
+                iconURL: reply.author?.avatarURL || reply.avatarURL,
+                name: reply.author?.displayName || reply.username || "unknown",
+              })
+              .setColor(
+                message.roleColour
+                  ? (message.roleColour as HexColorString)
+                  : null,
+              )
+              .setDescription(reply.content),
+          );
         }
       }
 
@@ -164,7 +175,9 @@ export default {
       });
     });
 
-    client.loginBot(config.bridge.stoat.token);
+    setTimeout(() => {
+      client.loginBot(config.bridge.stoat.token);
+    }, 2000);
 
     ctx.client.on(Events.MessageCreate, async (event) => {
       if (event.webhookId || !event.inGuild() || !event.member) return;

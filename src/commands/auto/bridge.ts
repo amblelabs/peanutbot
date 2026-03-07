@@ -137,7 +137,7 @@ export default {
       const discordChannel = stoat2Discord[message.channelId];
       const webhook = discord2Webhook[discordChannel];
 
-      logger.info("(stoat) message: " + message.content);
+      //logger.info("(stoat) message: " + message.content);
 
       let content = message.content;
 
@@ -246,7 +246,7 @@ export default {
           content;
       }
 
-      logger.info(
+      //logger.info(
         await webhook.send({
           content: content,
           masquerade: {
@@ -255,7 +255,7 @@ export default {
             colour: event.member.displayHexColor,
           },
         }),
-      );
+      //);
     });
   },
 } as Cmd;

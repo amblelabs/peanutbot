@@ -19,7 +19,7 @@ async function onMessage(
   message: Message,
 ) {
     async function process(content: string) {
-        for (const propNum of content.matchAll(propRe)) {
+        for (const propNum of [...content.matchAll(propRe).map(e => e[1])]) {
             message.reply(`**Proposal ${propNum}**: [ait-next/${propNum}](https://github.com/amblelabs/ait-next/issues/${propNum})`);
         }
     }

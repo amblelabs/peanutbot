@@ -254,7 +254,7 @@ export default {
             name: appendSlice(event.member.displayName, " (discord)"),
             colour: event.member.displayHexColor,
           },
-        }),
+        })
       //);
     });
   },

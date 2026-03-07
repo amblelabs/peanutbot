@@ -11,27 +11,27 @@ async function onMessage(ctx: Ctx, message: Message) {
     if (!message.channel.isSendable() || message.author.bot) return;
 
     async function process(c: string) {
-      const responsible = message.mentions.has(ctx.client.user!) && (c.includes("who") && (c.includes("responsible") || c.includes("blame")));
+        const responsible = message.mentions.has(ctx.client.user!) && (c.includes("who") && (c.includes("responsible") || c.includes("blame")));
     
-      if (responsible) {
-          message.reply(rnd.pickRandom(config.fun.blame.antifun.concat(config.fun.blame.noUpdates)));
-          return;
-      }
+        if (responsible) {
+            message.reply(rnd.pickRandom(config.fun.blame.antifun.concat(config.fun.blame.noUpdates)));
+            return;
+        }
 
-      const misc = ((c.includes("gamebreaking") || c.includes("game-breaking") || c.includes("game breaking")) && c.includes("bug"))
-          || (c.includes("release") || c.includes("mod") || c.includes("upate")) && (c.includes("lag") || c.includes("bug"));
+        const misc = ((c.includes("gamebreaking") || c.includes("game-breaking") || c.includes("game breaking")) && c.includes("bug"))
+            || (c.includes("release") || c.includes("mod") || c.includes("upate")) && (c.includes("lag") || c.includes("bug"));
     
     
-      if (misc) {
-          message.reply(rnd.pickRandom(config.fun.blame.antifun));
-          return;
-      }
+        if (misc) {
+            message.reply(rnd.pickRandom(config.fun.blame.antifun));
+            return;
+        }
 
-      const noUpdates = c.includes("no updates") || c.includes("release was") || c.includes("update was");
+        const noUpdates = c.includes("no updates") || c.includes("release was") || c.includes("update was");
 
-      if (noUpdates)
-          message.reply(rnd.pickRandom(config.fun.blame.noUpdates));
-      }
+        if (noUpdates) {
+            message.reply(rnd.pickRandom(config.fun.blame.noUpdates));
+        }
     }
 
     const content = message.content.toLowerCase();

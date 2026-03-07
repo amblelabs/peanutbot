@@ -8,7 +8,7 @@ const data: CmdData = {
 };
 
 async function onMessage(ctx: Ctx, message: Message) {
-    if (!message.channel.isSendable()) return;
+    if (!message.channel.isSendable() || message.author.bot) return;
 
     const c = message.content.toLowerCase();
 
@@ -23,7 +23,7 @@ async function onMessage(ctx: Ctx, message: Message) {
         || (c.includes("release") || c.includes("mod") || c.includes("upate")) && (c.includes("lag") || c.includes("bug"));
     
     
-    if (responsible || misc) {
+    if (misc) {
         message.reply(rnd.pickRandom(config.fun.blame.antifun));
         return;
     }

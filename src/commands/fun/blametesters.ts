@@ -19,7 +19,7 @@ async function onMessage(ctx: Ctx, message: Message) {
         return;
     }
 
-    const misc = (c.includes("gamebreaking") || c.includes("game-breaking")) && c.includes("bug") 
+    const misc = ((c.includes("gamebreaking") || c.includes("game-breaking") || c.includes("game breaking")) && c.includes("bug"))
         || (c.includes("release") || c.includes("mod") || c.includes("upate")) && (c.includes("lag") || c.includes("bug"));
     
     

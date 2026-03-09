@@ -22,7 +22,7 @@ async function execute(
   channel: SendableChannels,
   args: string[],
 ) {
-  await message.reply();
+  await message.reply(makeReply());
 }
 
 function slash(builder: SlashCommandBuilder): SharedSlashCommand {

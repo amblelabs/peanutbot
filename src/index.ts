@@ -133,14 +133,17 @@ const rest = new REST().setToken(config.token);
         Routes.applicationGuildCommands(config.clientId, guildId),
         { body: slashCommands },
       )) as any[];
-      logger.info(
-        `Successfully reloaded ${data.length} application (/) commands.`,
-      );
     }
   } catch (error) {
     // And of course, make sure you catch and log any errors!
     logger.error(error);
   }
+
+  await rest.put(Routes.applicationCommands(clientId), { body: slashCommands });
+
+  logger.info(
+    `Reloaded ${data.length} application (/) commands.`,
+  );
 })();
 
 ctx.client.on(Events.MessageCreate, async (message) => {

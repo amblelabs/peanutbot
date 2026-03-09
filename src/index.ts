@@ -139,7 +139,7 @@ const rest = new REST().setToken(config.token);
     logger.error(error);
   }
 
-  await rest.put(Routes.applicationCommands(clientId), { body: slashCommands });
+  await rest.put(Routes.applicationCommands(config.clientId), { body: slashCommands });
 
   logger.info(
     `Reloaded ${data.length} application (/) commands.`,

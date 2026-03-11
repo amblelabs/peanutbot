@@ -7,7 +7,7 @@ const data: CmdData = {
 
 async function onMessage(ctx: Ctx, message: Message) {
     if (message.channel.isSendable() && message.content.toLowerCase().includes("listening") && message.mentions.has(ctx.client.user!))
-        await message.reply({ stickers: ["1480236131759947868"] });
+        await message.reply({ stickers: ["1481417338346668162"] });
 }
 
 export default {

@@ -1,33 +1,133 @@
 import config from "config.json";
-import type {
-  Interaction,
-  Message,
-  SendableChannels,
-  SharedSlashCommand,
-  SlashCommandBuilder,
-} from "discord.js";
+import { type Message, EmbedBuilder } from "discord.js";
 import type { Cmd, CmdData, Ctx } from "~/util/base";
 
 const data: CmdData = {
-    name: "proposals",
+  name: "proposals",
 };
 
 const propRe = /ait-(\d+)/gi;
+const propSearchRe = /ait-\/(.+?)\//g;
 
-async function onMessage(
-  ctx: Ctx,
-  message: Message,
-) {
-    async function process(content: string) {
-        for (const propNum of [...content.matchAll(propRe).map(e => e[1])]) {
-            message.reply(`**<:al_ait:1393920126645960704> AIT \`2.x\` [Proposal #${propNum}](https://github.com/amblelabs/ait-next/issues/${propNum}) **`);
-        }
+async function onMessage(ctx: Ctx, message: Message) {
+  for (const propNum of [
+    ...message.content.matchAll(propRe).map((e) => e[1]),
+  ]) {
+    message.reply(
+      `**<:al_ait:1393920126645960704> AIT \`2.x\` [Proposal #${propNum}](https://github.com/amblelabs/ait-next/issues/${propNum}) **`,
+    );
+  }
+
+  for (const searchQuery of [
+    ...message.content.matchAll(propSearchRe).map((e) => e[1]),
+  ]) {
+    handleSearch(message, searchQuery);
+  }
+}
+
+async function handleSearch(message: Message, query: string) {
+  try {
+    const searchQuery = `repo:amblelabs/ait-next ${query}`;
+    const url = new URL("https://api.github.com/search/issues");
+    url.searchParams.append("q", searchQuery);
+    url.searchParams.append("per_page", "5");
+    url.searchParams.append("sort", "relevance");
+
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `token ${config.githubToken}`,
+        Accept: "application/vnd.github.v3+json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("GitHub search error:", errorData);
+      await message.reply("⚠️ An error occurred while searching GitHub.");
+      return;
     }
 
-    process(message.content);
+    const data = await response.json();
+    const items: Array<any> = data.items;
+
+    if (items.length === 0) {
+      await message.reply(`🔍 No results found for \`${query}\`.`);
+      return;
+    }
+
+    // Build an embed with the search results
+    const embed = new EmbedBuilder()
+      .setColor(0x2dbe60)
+      .setTitle(`🔍 Proposal Search Results for "${query}"`)
+      .setURL(
+        `https://github.com/amblelabs/ait-next/issues?q=${encodeURIComponent(query)}`,
+      )
+      .setDescription(`Top ${items.length} matching proposals.`);
+
+    items
+      .map((e) => {
+        return {
+          state: e.state,
+          approved: e.labels.some((l: any) => l.name.includes("Approval")),
+          stateReason: e.state_reason,
+          notPlanned: e.state_reason === "not_planned",
+          isPR: !!e.pull_request,
+          title: e.title,
+          number: e.number,
+          html_url: e.html_url,
+        };
+      })
+      .sort((a, b) => {
+        return (
+          b.approved -
+          a.approved -
+          100 * ((a.notPlanned ? -1 : 0) - (b.notPlanned ? 1 : 0))
+        );
+      })
+      .forEach((item, index) => {
+        if (item.isPR) return;
+
+        const type = item.isPR ? "Pull Request" : "Proposal";
+
+        let stateEmoji = "🟡";
+        let reason = "Not approved";
+
+        if (item.state === "open") {
+          if (item.approved) {
+            stateEmoji = "🟢";
+            reason = "";
+          }
+        } else {
+          if (item.notPlanned) {
+            stateEmoji = "⚪";
+            reason = "Not planned.";
+          } else {
+            stateEmoji = "🔴";
+            reason = "Declined.";
+          }
+        }
+
+        if (reason) {
+          reason = ": " + reason;
+        }
+
+        embed.addFields({
+          name: `${index + 1}. ${item.title}`,
+          value: `${stateEmoji} [${type} **#${item.number}**](${item.html_url})${reason}`,
+          inline: false,
+        });
+      });
+
+    await message.reply({ embeds: [embed] });
+  } catch (error) {
+    console.error("Fetch error:", error);
+    await message.reply(
+      "⚠️ An error occurred while communicating with GitHub.",
+    );
+  }
 }
 
 export default {
-    data,
-    onMessage,
+  data,
+  onMessage,
 } as Cmd;

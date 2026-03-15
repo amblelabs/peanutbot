@@ -102,8 +102,10 @@ async function handleSearch(message: Message, query: string) {
             stateEmoji = "⚪";
             reason = "Not planned.";
           } else {
-            stateEmoji = "🔴";
-            reason = "Declined.";
+            stateEmoji = "🟣";
+            reason = "Implemented.";
+            //stateEmoji = "🔴";
+            //reason = "Declined.";
           }
         }
 

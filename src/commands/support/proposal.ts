@@ -69,6 +69,7 @@ async function handleSearch(message: Message, query: string, onlyActive: bool) {
         return {
           state: e.state,
           approved: e.labels.some((l: any) => l.name.includes("Approval")),
+          discussion: e.labels.some((l: any) => l.name.includes("Discussion")),
           stateReason: e.state_reason,
           notPlanned: e.state_reason === "not_planned",
           isPR: !!e.pull_request,
@@ -96,7 +97,11 @@ async function handleSearch(message: Message, query: string, onlyActive: bool) {
         if (item.state === "open") {
           if (item.approved) {
             stateEmoji = "🟢";
-            reason = "";
+            reason = "Approved";
+          }
+
+          if (item.discussion) {
+            reason = "Undergoing discussion."
           }
         } else {
           if (item.notPlanned) {

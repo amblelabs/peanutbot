@@ -7,7 +7,7 @@ const data: CmdData = {
 };
 
 const propRe = /ait-(\d+)/gi;
-const propSearchRe = /ait-\/(.+?)\//g;
+const propSearchRe = /ait-\/(.+?)\/(a)?/g;
 
 async function onMessage(ctx: Ctx, message: Message) {
   for (const propNum of [
@@ -19,13 +19,13 @@ async function onMessage(ctx: Ctx, message: Message) {
   }
 
   for (const searchQuery of [
-    ...message.content.matchAll(propSearchRe).map((e) => e[1]),
+    ...message.content.matchAll(propSearchRe),
   ]) {
-    handleSearch(message, searchQuery);
+    handleSearch(message, searchQuery[1], searchQuery[2] ?? false);
   }
 }
 
-async function handleSearch(message: Message, query: string) {
+async function handleSearch(message: Message, query: string, onlyActive: bool) {
   try {
     const searchQuery = `repo:amblelabs/ait-next ${query}`;
     const url = new URL("https://api.github.com/search/issues");
@@ -86,6 +86,7 @@ async function handleSearch(message: Message, query: string) {
       })
       .forEach((item, index) => {
         if (item.isPR) return;
+        if (onlyActive && item.state !== "open") return;
 
         const type = item.isPR ? "Pull Request" : "Proposal";
 

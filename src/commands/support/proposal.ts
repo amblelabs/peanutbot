@@ -86,7 +86,7 @@ async function handleSearch(message: Message, query: string, onlyActive: bool) {
       })
       .forEach((item, index) => {
         if (item.isPR) return;
-        if (onlyActive && item.state !== "open") return;
+        if (onlyActive && item.notPlanned) return;
 
         const type = item.isPR ? "Pull Request" : "Proposal";
 

@@ -232,18 +232,20 @@ export default {
       }
 
       if (event.reference) {
-        const reply = await event.fetchReference();
+        try {
+          const reply = await event.fetchReference();
 
-        // TODO: use embeds
-        content =
-          "*↪ Reply:*\n" +
-          `to \`@${reply.author.displayName}\`\n` +
-          reply.content
-            .split("\n")
-            .map((val) => "> " + val)
-            .join("\n") +
-          "\n" +
-          content;
+          // TODO: use embeds
+          content =
+            "*↪ Reply:*\n" +
+            `to \`@${reply.author.displayName}\`\n` +
+            reply.content
+              .split("\n")
+              .map((val) => "> " + val)
+              .join("\n") +
+            "\n" +
+            content;
+        } catch (e) { }
       }
 
       //logger.info(

@@ -47,7 +47,7 @@ async function handleSearch(message: Message, query: string, onlyActive: bool) {
     }
 
     const data = await response.json();
-    const items: Array<any> = data.items;
+    const items: Array<any> = data;
 
     if (items.length === 0) {
       await message.reply(`🔍 No results found for \`${query}\`.`);

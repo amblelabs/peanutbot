@@ -30,7 +30,7 @@ async function handleSearch(message: Message, query: string, onlyActive: bool) {
     const url = new URL("https://codeberg.org/api/v1/repos/AmbleLabs/ait-next/issues");
     url.searchParams.append("q", query);
     url.searchParams.append("limit", "5");
-    url.searchParams.append("type", "all");
+    url.searchParams.append("state", "all");
     url.searchParams.append("sort", "relevance");
     url.searchParams.append("access_token", config.codebergToken)
 

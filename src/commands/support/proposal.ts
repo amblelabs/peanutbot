@@ -64,13 +64,14 @@ async function handleSearch(message: Message, query: string, onlyActive: bool) {
       .setDescription(`Top ${items.length} matching proposals.`);
 
     items
+      .filter((e) => e.labels.some(l => l.name === "X: Proposal"))
       .map((e) => {
         return {
           state: e.state,
-          approved: e.labels.some((l: any) => l.name.includes("Approval")),
-          discussion: e.labels.some((l: any) => l.name.includes("Discussion")),
+          approved: e.labels.some((l: any) => l.name === "S: Conceptual Approval"),
+          discussion: e.labels.some((l: any) => l.name === "S: Undergoing Discussion"),
           stateReason: e.state_reason,
-          notPlanned: e.state_reason === "not_planned",
+          notPlanned: e.labels.some((l: any) => l.name === "X: Not Planned"),
           isPR: !!e.pull_request,
           title: e.title,
           number: e.number,

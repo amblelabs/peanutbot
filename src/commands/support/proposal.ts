@@ -14,7 +14,7 @@ async function onMessage(ctx: Ctx, message: Message) {
     ...message.content.matchAll(propRe).map((e) => e[1]),
   ]) {
     message.reply(
-      `**<:al_ait:1393920126645960704> AIT \`2.x\` [Proposal #${propNum}](https://github.com/amblelabs/ait-next/issues/${propNum}) **`,
+      `**<:al_ait:1393920126645960704> AIT \`2.x\` [Proposal #${propNum}](https://codeberg.org/AmbleLabs/ait-next/issues/${propNum}) **`,
     );
   }
 
@@ -27,16 +27,15 @@ async function onMessage(ctx: Ctx, message: Message) {
 
 async function handleSearch(message: Message, query: string, onlyActive: bool) {
   try {
-    const searchQuery = `repo:amblelabs/ait-next ${query}`;
-    const url = new URL("https://api.github.com/search/issues");
-    url.searchParams.append("q", searchQuery);
-    url.searchParams.append("per_page", "5");
+    const url = new URL("https://codeberg.org/api/v1/repos/AmbleLabs/ait-next/issues");
+    url.searchParams.append("q", query);
+    url.searchParams.append("limit", "5");
     url.searchParams.append("sort", "relevance");
+    url.searchParams.append("access_token", config.codebergToken)
 
     const response = await fetch(url, {
       headers: {
-        Authorization: `token ${config.githubToken}`,
-        Accept: "application/vnd.github.v3+json",
+        Accept: "application/json",
       },
     });
 

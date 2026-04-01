@@ -76,13 +76,6 @@ ctx.client.once(Events.ClientReady, async (readyClient) => {
   ctx.sql.authenticate();
   ctx.wakeUp();
 
-  (await ctx.client.guilds.fetch()).forEach((e) => {
-    if (!config.guildId.includes(e.id)) {
-      logger.warn(`Leaving ${e.id} (${e.name})...`);
-      ctx.client.guilds.cache.get(e.id)!.leave();
-    }
-  });
-
   logger.info(`Ready! Logged in as ${readyClient.user.tag}`);
 });
 
@@ -134,16 +127,12 @@ const rest = new REST().setToken(config.token);
         { body: slashCommands },
       )) as any[];
 
-      logger.info(
-        `Reloaded ${data.length} application (/) commands.`,
-      );
+      logger.info(`Reloaded ${data.length} application (/) commands.`);
     }
   } catch (error) {
     // And of course, make sure you catch and log any errors!
     logger.error(error);
   }
-
-  await rest.put(Routes.applicationCommands(config.clientId), { body: slashCommands });
 })();
 
 ctx.client.on(Events.MessageCreate, async (message) => {
@@ -200,7 +189,7 @@ ctx.client.on(Events.InteractionCreate, async (interaction) => {
   ctx.lastUse = Date.now();
 
   let handlerId: string | undefined;
-  if (interaction.isButton()) {
+  if (interaction.isButton() || interaction.isModalSubmit()) {
     const ic = interaction.customId.indexOf(":");
     handlerId = interaction.customId.substring(0, ic);
   } else if (interaction.isChatInputCommand() || interaction.isAutocomplete()) {

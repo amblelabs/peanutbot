@@ -205,10 +205,14 @@ export default {
       });
     });
 
-    logger.info("Waiting 5s to start stoat bot...");
+    logger.info("Waiting 3s to start stoat bot...");
     setTimeout(() => {
-      client.loginBot(config.bridge.stoat.token);
-    }, 5000);
+      try {
+        client.loginBot(config.bridge.stoat.token);
+      } catch (e) {
+        logger.error("Failed to log into stoat", e);
+      }
+    }, 3000);
 
     ctx.client.on(Events.MessageCreate, async (event) => {
       if (event.webhookId || !event.inGuild() || !event.member) return;
@@ -245,18 +249,18 @@ export default {
               .join("\n") +
             "\n" +
             content;
-        } catch (e) { }
+        } catch (e) {}
       }
 
       //logger.info(
-        await webhook.send({
-          content: content,
-          masquerade: {
-            avatar: event.member.displayAvatarURL(),
-            name: appendSlice(event.member.displayName, " (discord)"),
-            colour: event.member.displayHexColor,
-          },
-        })
+      await webhook.send({
+        content: content,
+        masquerade: {
+          avatar: event.member.displayAvatarURL(),
+          name: appendSlice(event.member.displayName, " (discord)"),
+          colour: event.member.displayHexColor,
+        },
+      });
       //);
     });
   },

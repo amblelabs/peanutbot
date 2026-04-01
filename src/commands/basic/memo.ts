@@ -17,6 +17,7 @@ import {
 } from "sequelize";
 import type { Cmd, CmdData, Ctx } from "~/util/base";
 import { logger } from "~/util/logger";
+import { parseDuration } from "~/util/time";
 
 const regex = new RegExp(
   "(?:([0-9]{1,2}d))?(?:([0-9]{1,2}h))?(?:([0-9]{1,2}m))?",
@@ -43,18 +44,11 @@ function makeReply(
 ): string {
   if (!timestamp) return config.memos.invalidTimestamp;
 
-  const res = regex.exec(timestamp);
-
-  if (!res) {
-    return config.memos.invalidTimestamp;
-  }
-
   try {
-    const days = parseInt(res[1] ?? 0);
-    const hours = parseInt(res[2] ?? 0) + days * 24;
-    const minutes = parseInt(res[3] ?? 0) + hours * 60;
+    const duration = parseDuration(timestamp);
+    if (!duration) return config.memos.invalidTimestamp;
 
-    const totalTime = Date.now() + minutes * 60 * 1000;
+    const totalTime = Date.now() + duration;
 
     Memos.create({
       owner,
@@ -62,10 +56,10 @@ function makeReply(
       timeout: totalTime,
     });
 
-    return config.memos.success
-      .replaceAll("$DAYS", res[1] ?? 0)
-      .replaceAll("$HOURS", res[2] ?? 0)
-      .replaceAll("$MINUTES", res[3] ?? 0);
+    return config.memos.success.replaceAll(
+      "$TIMESTAMP",
+      `<t:${Math.floor(totalTime / 1000)}:R>`,
+    );
   } catch (error) {
     return config.memos.badNumbers;
   }

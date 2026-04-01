@@ -16,16 +16,17 @@ export default {
     builder
       .setName("clearafter")
       .setDescription(
-        "Deletes all messages in the channel after the specified message ID."
+        "Deletes all messages in the channel after the specified message ID.",
       )
       .addStringOption((option) =>
         option
           .setName("messageid")
           .setDescription(
-            "The message ID after which all messages will be deleted."
+            "The message ID after which all messages will be deleted.",
           )
-          .setRequired(true)
-      ),
+          .setRequired(true),
+      )
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
   onInteraction: async (ctx, interaction) => {
     if (!interaction.isChatInputCommand()) return;
@@ -100,7 +101,7 @@ export default {
 
       // Filter messages that are actually newer than the target
       const toDelete = messages.filter(
-        (msg) => msg.createdTimestamp > targetMessage.createdTimestamp
+        (msg) => msg.createdTimestamp > targetMessage.createdTimestamp,
       );
 
       if (toDelete.size === 0) {

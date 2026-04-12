@@ -14,8 +14,8 @@ export function paginate(message: string | string[]): string[] {
   let messageBuilder: string = "";
 
   for (const line of lines) {
-    if (messageBuilder.length + line.length > MESSAGE_CHAR_LIMIT) {
-      result.push(messageBuilder);
+    if (messageBuilder.length + line.length + 1 > MESSAGE_CHAR_LIMIT) {
+      result.push(messageBuilder.trim());
       messageBuilder = line;
     } else {
       messageBuilder += "\n" + line;

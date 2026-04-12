@@ -96,6 +96,15 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
   );
 }
 
+async function searchByQuery(ctx: Ctx, message: Message, query: string) {
+  const target = message.reference ? await message.fetchReference() : message;
+
+  await paginateReplyMessage(target, [
+    await printSearchResults(query),
+    await printSearchResultsV2(ctx, query),
+  ]);
+}
+
 async function execute(
   ctx: Ctx,
   message: Message,
@@ -103,12 +112,7 @@ async function execute(
   args: string[],
 ) {
   const query = args.join(" ");
-  const target = message.reference ? await message.fetchReference() : message;
-
-  await paginateReplyMessage(target, [
-    await printSearchResults(query),
-    await printSearchResultsV2(ctx, query),
-  ]);
+  await searchByQuery(ctx, message, query);
 }
 
 function slash(builder: SlashCommandBuilder): SharedSlashCommand {
@@ -149,5 +153,5 @@ export default {
   printSearchResults,
 } as Cmd & {
   printSearchResults: (arg0: string) => Promise<string>;
-  searchByQuery: (arg0: Ctx, arg1: Message<true>, arg2: string) => any;
+  searchByQuery: (arg0: Ctx, arg1: Message, arg2: string) => Promise<void>;
 };

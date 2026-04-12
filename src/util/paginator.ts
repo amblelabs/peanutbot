@@ -46,7 +46,11 @@ export async function paginateReply(
 ) {
   const result = paginate(message);
 
-  await (follow ? interaction.followUp : interaction.reply)(result[0]);
+  if (follow) {
+    await interaction.followUp(result[0]);
+  } else {
+    await interaction.reply(result[0]);
+  }
 
   for (let i = 1; i < result.length; i++) {
     await interaction.followUp(result[i]);

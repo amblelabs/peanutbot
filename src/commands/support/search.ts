@@ -117,7 +117,7 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
   await interaction.reply(await printSearchResults(query));
 
   const result = await printSearchResultsV2(ctx, query);
-  await Promise.all(result.map((l) => interaction.reply(l)));
+  await Promise.all(result.map((l) => interaction.followUp(l)));
 }
 
 async function setup(ctx: Ctx) {

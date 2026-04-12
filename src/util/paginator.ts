@@ -1,6 +1,6 @@
 import type { Message, RepliableInteraction } from "discord.js";
 
-const MESSAGE_CHAR_LIMIT = 2000;
+const MESSAGE_CHAR_LIMIT = 1980;
 
 export function paginate(message: string | string[]): string[] {
   if (message.length < MESSAGE_CHAR_LIMIT) {

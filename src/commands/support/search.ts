@@ -73,8 +73,13 @@ async function printSearchResultsV2(ctx: Ctx, query: string): Promise<string> {
         break;
 
       case "text":
-        const content = highlighter.highlightMarkdown(res.content);
-        msg.push(format(config.wikisearch2.format.text, content));
+        const content = highlighter
+          .highlightMarkdown(res.content)
+          .split("\n")
+          .map((s) => format(config.wikisearch2.format.text, s))
+          .join("\n");
+
+        msg.push(content);
         break;
     }
   }

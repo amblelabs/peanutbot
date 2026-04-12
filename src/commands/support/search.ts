@@ -86,8 +86,8 @@ async function searchByQuery(ctx: Ctx, message: Message, query: string) {
   const target = message.reference ? await message.fetchReference() : message;
 
   await paginateReplyMessage(target, [
-    ...(await printSearchResults(query)),
-    ...(await printSearchResultsV2(ctx, query)),
+    await printSearchResults(query),
+    await printSearchResultsV2(ctx, query),
   ]);
 }
 

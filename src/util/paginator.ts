@@ -1,4 +1,4 @@
-import type { Interaction, Message, RepliableInteraction } from "discord.js";
+import type { Message, RepliableInteraction } from "discord.js";
 
 const MESSAGE_CHAR_LIMIT = 2000;
 
@@ -42,14 +42,14 @@ export async function paginateReplyMessage(
 export async function paginateReply(
   interaction: RepliableInteraction,
   message: string | string[],
-  follow: boolean = false,
+  reply: boolean = true,
 ) {
   const result = paginate(message);
 
-  if (follow) {
-    await interaction.followUp(result[0]);
-  } else {
+  if (reply) {
     await interaction.reply(result[0]);
+  } else {
+    await interaction.followUp(result[0]);
   }
 
   for (let i = 1; i < result.length; i++) {

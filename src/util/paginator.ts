@@ -1,13 +1,14 @@
 import type { Message, RepliableInteraction } from "discord.js";
 
-const MESSAGE_CHAR_LIMIT = 1980;
+const MESSAGE_CHAR_LIMIT = 2000;
 
 export function paginate(message: string | string[]): string[] {
+  if (Array.isArray(message)) message = message.join("\n");
+
   if (message.length < MESSAGE_CHAR_LIMIT) {
-    return typeof message === "string" ? [message] : message;
+    return [message];
   }
 
-  if (Array.isArray(message)) message = message.join("\n");
   const lines = message.split("\n");
 
   const result: string[] = [];
@@ -15,13 +16,14 @@ export function paginate(message: string | string[]): string[] {
 
   for (const line of lines) {
     if (messageBuilder.length + line.length + 1 > MESSAGE_CHAR_LIMIT) {
-      result.push(messageBuilder.trim());
+      result.push(messageBuilder);
       messageBuilder = line;
     } else {
       messageBuilder += "\n" + line;
     }
   }
 
+  result.push(messageBuilder);
   return result;
 }
 

@@ -12,15 +12,14 @@ import wikisearch from "~/util/wikisearch";
 import { format, type Cmd, type CmdData, type Ctx } from "~/util/base";
 import path from "node:path";
 import { logger } from "~/util/logger";
-import { trimJoin } from "~/util/breaker";
 import { paginate } from "~/util/paginator";
 import { createContentHighlighter } from "~/util/highlighter";
 
-async function printSearchResults(query: string): Promise<string> {
+async function printSearchResults(query: string): Promise<string[]> {
   const result = await wikisearch.search(query);
-  if (!result) return config.wikisearch.empty;
+  if (!result) return [config.wikisearch.empty];
 
-  const msgBuilder = [];
+  const msgBuilder = [config.wikisearch.header];
 
   for (const res of result) {
     const title = res.prefix ?? res.children.title;
@@ -32,7 +31,7 @@ async function printSearchResults(query: string): Promise<string> {
     msgBuilder.push(`> ${content}\n`);
   }
 
-  return trimJoin({ texts: msgBuilder, prefix: config.wikisearch.header });
+  return paginate(msgBuilder.join("\n"));
 }
 
 async function printSearchResultsV2(
@@ -84,10 +83,15 @@ async function printSearchResultsV2(
 
 async function searchByQuery(ctx: Ctx, message: Message, query: string) {
   const target = message.reference ? await message.fetchReference() : message;
-  await target.reply(await printSearchResults(query));
+  {
+    const result = await printSearchResults(query);
+    await Promise.all(result.map((l) => target.reply(l)));
+  }
 
-  const result = await printSearchResultsV2(ctx, query);
-  await Promise.all(result.map((l) => target.reply(l)));
+  {
+    const result = await printSearchResultsV2(ctx, query);
+    await Promise.all(result.map((l) => target.reply(l)));
+  }
 }
 
 async function execute(
@@ -112,10 +116,20 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
   if (!interaction.isChatInputCommand()) return;
 
   const query = interaction.options.getString("query", true);
-  await interaction.reply(await printSearchResults(query));
 
-  const result = await printSearchResultsV2(ctx, query);
-  await Promise.all(result.map((l) => interaction.followUp(l)));
+  {
+    const result = await printSearchResults(query);
+    await Promise.all(
+      result.map((l) =>
+        (interaction.replied ? interaction.followUp : interaction.reply)(l),
+      ),
+    );
+  }
+
+  {
+    const result = await printSearchResultsV2(ctx, query);
+    await Promise.all(result.map(interaction.followUp));
+  }
 }
 
 async function setup(ctx: Ctx) {
@@ -147,6 +161,6 @@ export default {
   searchByQuery,
   printSearchResults,
 } as Cmd & {
-  printSearchResults: (arg0: string) => Promise<string>;
+  printSearchResults: (arg0: string) => Promise<string[]>;
   searchByQuery: (arg0: Ctx, arg1: Message<true>, arg2: string) => any;
 };

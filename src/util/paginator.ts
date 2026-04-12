@@ -1,10 +1,11 @@
 const MESSAGE_CHAR_LIMIT = 2000;
 
-export function paginate(message: string): string[] {
+export function paginate(message: string | string[]): string[] {
   if (message.length < MESSAGE_CHAR_LIMIT) {
-    return [message];
+    return typeof message === "string" ? [message] : message;
   }
 
+  if (Array.isArray(message)) message = message.join("\n");
   const lines = message.split("\n");
 
   const result: string[] = [];

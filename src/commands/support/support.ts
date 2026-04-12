@@ -109,7 +109,8 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
       await interaction.reply(resMsg);
 
       if (!success && config.support.searchWiki) {
-        await interaction.followUp(await search.printSearchResults(query));
+        const result = await search.printSearchResults(query);
+        await Promise.all(result.map(interaction.followUp));
 
         await interaction.followUp(
           `Query: ${cleanContent(query, interaction.channel)}`,

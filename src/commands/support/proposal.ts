@@ -18,21 +18,21 @@ async function onMessage(ctx: Ctx, message: Message) {
     );
   }
 
-  for (const searchQuery of [
-    ...message.content.matchAll(propSearchRe),
-  ]) {
+  for (const searchQuery of [...message.content.matchAll(propSearchRe)]) {
     handleSearch(message, searchQuery[1], searchQuery[2] ?? false);
   }
 }
 
 async function handleSearch(message: Message, query: string, onlyActive: bool) {
   try {
-    const url = new URL("https://codeberg.org/api/v1/repos/AmbleLabs/ait-next/issues");
+    const url = new URL(
+      "https://codeberg.org/api/v1/repos/AmbleLabs/ait-next/issues",
+    );
     url.searchParams.append("q", query);
     url.searchParams.append("limit", "5");
     url.searchParams.append("state", "all");
     url.searchParams.append("sort", "relevance");
-    url.searchParams.append("access_token", config.codebergToken)
+    url.searchParams.append("access_token", config.codebergToken);
 
     const response = await fetch(url, {
       headers: {
@@ -41,7 +41,7 @@ async function handleSearch(message: Message, query: string, onlyActive: bool) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = await response.json().catch(() => {});
       console.error("GitHub search error:", errorData);
       await message.reply("⚠️ An error occurred while searching GitHub.");
       return;
@@ -65,12 +65,16 @@ async function handleSearch(message: Message, query: string, onlyActive: bool) {
       .setDescription(`Top ${items.length} matching proposals.`);
 
     items
-      .filter((e) => e.labels.some(l => l.name === "X: Proposal"))
+      .filter((e) => e.labels.some((l) => l.name === "X: Proposal"))
       .map((e) => {
         return {
           state: e.state,
-          approved: e.labels.some((l: any) => l.name === "S: Conceptual Approval"),
-          discussion: e.labels.some((l: any) => l.name === "S: Undergoing Discussion"),
+          approved: e.labels.some(
+            (l: any) => l.name === "S: Conceptual Approval",
+          ),
+          discussion: e.labels.some(
+            (l: any) => l.name === "S: Undergoing Discussion",
+          ),
           stateReason: e.state_reason,
           notPlanned: e.labels.some((l: any) => l.name === "X: Not Planned"),
           isPR: !!e.pull_request,
@@ -102,7 +106,7 @@ async function handleSearch(message: Message, query: string, onlyActive: bool) {
           }
 
           if (item.discussion) {
-            reason = "Undergoing discussion."
+            reason = "Undergoing discussion.";
           }
         } else {
           if (item.notPlanned) {

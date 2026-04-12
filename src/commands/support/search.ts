@@ -83,8 +83,6 @@ async function printSearchResultsV2(
 }
 
 async function searchByQuery(ctx: Ctx, message: Message, query: string) {
-  if (!message.channel.isSendable()) return;
-
   const target = message.reference ? await message.fetchReference() : message;
   await target.reply(await printSearchResults(query));
 
@@ -145,7 +143,6 @@ export default {
   slash,
   setup,
   onInteraction,
-  execute,
 
   searchByQuery,
   printSearchResults,

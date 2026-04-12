@@ -44,17 +44,26 @@ export async function paginateReplyMessage(
 export async function paginateReply(
   interaction: RepliableInteraction,
   message: string | string[],
-  reply: boolean = true,
+  first: "reply" | "follow" | "send" = "reply",
+  other: "send" | "follow" = "send",
 ) {
   const result = paginate(message);
 
-  if (reply) {
+  if (first === "reply") {
     await interaction.reply(result[0]);
-  } else {
+  } else if (first === "follow") {
     await interaction.followUp(result[0]);
+  } else if (first === "send" && interaction.channel?.isSendable()) {
+    await interaction.channel.send(result[0]);
   }
 
-  for (let i = 1; i < result.length; i++) {
-    await interaction.followUp(result[i]);
+  if (other === "send" && interaction.channel?.isSendable()) {
+    for (let i = 1; i < result.length; i++) {
+      await interaction.channel.send(result[i]);
+    }
+  } else if (other === "follow") {
+    for (let i = 1; i < result.length; i++) {
+      await interaction.followUp(result[i]);
+    }
   }
 }

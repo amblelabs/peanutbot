@@ -29,7 +29,7 @@ function hasKeyword(content: string, keyword: string): SearchResult {
     return NO_FIND;
   }
 
-  const isOptional = keyword.charAt(0) == "?";
+  const isOptional = keyword.charAt(0) === "?";
 
   if (isOptional) {
     keyword = keyword.substring(1);

@@ -110,7 +110,7 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
 
       if (!success && config.support.searchWiki) {
         const result = await search.printSearchResults(query);
-        await paginateReply(interaction, result, false);
+        await paginateReply(interaction, result, "follow");
 
         await interaction.followUp(
           `Query: ${cleanContent(query, interaction.channel)}`,

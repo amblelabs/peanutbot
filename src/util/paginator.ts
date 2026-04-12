@@ -11,14 +11,14 @@ export function paginate(message: string | string[]): string[] {
   const lines = message.split("\n");
 
   const result: string[] = [];
-  let messageBuilder: string[] = [];
+  let messageBuilder: string = "";
 
   for (const line of lines) {
     if (messageBuilder.length + line.length > MESSAGE_CHAR_LIMIT) {
-      result.push(messageBuilder.join("\n"));
-      messageBuilder = [line];
+      result.push(messageBuilder);
+      messageBuilder = line;
     } else {
-      messageBuilder.push(line);
+      messageBuilder += "\n" + line;
     }
   }
 

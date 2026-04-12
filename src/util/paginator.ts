@@ -1,3 +1,5 @@
+import type { Interaction, Message, RepliableInteraction } from "discord.js";
+
 const MESSAGE_CHAR_LIMIT = 2000;
 
 export function paginate(message: string | string[]): string[] {
@@ -21,4 +23,32 @@ export function paginate(message: string | string[]): string[] {
   }
 
   return result;
+}
+
+export async function paginateReplyMessage(
+  message: Message,
+  content: string | string[],
+) {
+  const result = paginate(content);
+  if (!message.channel.isSendable()) return;
+
+  await message.reply(result[0]);
+
+  for (let i = 1; i < result.length; i++) {
+    await message.channel.send(result[i]);
+  }
+}
+
+export async function paginateReply(
+  interaction: RepliableInteraction,
+  message: string | string[],
+  follow: boolean = false,
+) {
+  const result = paginate(message);
+
+  await (follow ? interaction.followUp : interaction.reply)(result[0]);
+
+  for (let i = 1; i < result.length; i++) {
+    await interaction.followUp(result[i]);
+  }
 }

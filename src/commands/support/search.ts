@@ -12,12 +12,16 @@ import wikisearch from "~/util/wikisearch";
 import { format, type Cmd, type CmdData, type Ctx } from "~/util/base";
 import path from "node:path";
 import { logger } from "~/util/logger";
-import { paginate } from "~/util/paginator";
+import {
+  paginate,
+  paginateReply,
+  paginateReplyMessage,
+} from "~/util/paginator";
 import { createContentHighlighter } from "~/util/highlighter";
 
-async function printSearchResults(query: string): Promise<string[]> {
+async function printSearchResults(query: string): Promise<string> {
   const result = await wikisearch.search(query);
-  if (!result) return [config.wikisearch.empty];
+  if (!result) return config.wikisearch.empty;
 
   const msgBuilder = [config.wikisearch.header];
 
@@ -31,15 +35,12 @@ async function printSearchResults(query: string): Promise<string[]> {
     msgBuilder.push(`> ${content}\n`);
   }
 
-  return paginate(msgBuilder.join("\n"));
+  return msgBuilder.join("\n");
 }
 
-async function printSearchResultsV2(
-  ctx: Ctx,
-  query: string,
-): Promise<string[]> {
+async function printSearchResultsV2(ctx: Ctx, query: string): Promise<string> {
   const result = await ctx.search.search(query);
-  if (!result) return [config.wikisearch.empty];
+  if (!result) return config.wikisearch.empty;
 
   const highlighter = createContentHighlighter(query);
   const msg = [config.wikisearch2.header];
@@ -78,20 +79,27 @@ async function printSearchResultsV2(
     }
   }
 
-  return paginate(msg.join(config.wikisearch2.format.sep));
+  return msg.join(config.wikisearch2.format.sep);
 }
 
 async function searchByQuery(ctx: Ctx, message: Message, query: string) {
   const target = message.reference ? await message.fetchReference() : message;
-  {
-    const result = await printSearchResults(query);
-    await Promise.all(result.map((l) => target.reply(l)));
-  }
 
-  {
-    const result = await printSearchResultsV2(ctx, query);
-    await Promise.all(result.map((l) => target.reply(l)));
-  }
+  await paginateReplyMessage(target, [
+    ...(await printSearchResults(query)),
+    ...(await printSearchResultsV2(ctx, query)),
+  ]);
+}
+
+async function onInteraction(ctx: Ctx, interaction: Interaction) {
+  if (!interaction.isChatInputCommand()) return;
+
+  const query = interaction.options.getString("query", true);
+
+  await paginateReply(interaction, [
+    ...(await printSearchResults(query)),
+    ...(await printSearchResultsV2(ctx, query)),
+  ]);
 }
 
 async function execute(
@@ -110,26 +118,6 @@ function slash(builder: SlashCommandBuilder): SharedSlashCommand {
     .addStringOption((option) =>
       option.setName("query").setRequired(true).setDescription("Search query."),
     );
-}
-
-async function onInteraction(ctx: Ctx, interaction: Interaction) {
-  if (!interaction.isChatInputCommand()) return;
-
-  const query = interaction.options.getString("query", true);
-
-  {
-    const result = await printSearchResults(query);
-    await Promise.all(
-      result.map((l) =>
-        (interaction.replied ? interaction.followUp : interaction.reply)(l),
-      ),
-    );
-  }
-
-  {
-    const result = await printSearchResultsV2(ctx, query);
-    await Promise.all(result.map(interaction.followUp));
-  }
 }
 
 async function setup(ctx: Ctx) {
@@ -161,6 +149,6 @@ export default {
   searchByQuery,
   printSearchResults,
 } as Cmd & {
-  printSearchResults: (arg0: string) => Promise<string[]>;
+  printSearchResults: (arg0: string) => Promise<string>;
   searchByQuery: (arg0: Ctx, arg1: Message<true>, arg2: string) => any;
 };

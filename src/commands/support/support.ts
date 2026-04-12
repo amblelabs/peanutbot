@@ -8,7 +8,6 @@ import {
   MessageFlags,
   SharedSlashCommand,
   SlashCommandBuilder,
-  type Channel,
   type Interaction,
   type SendableChannels,
   type Snowflake,
@@ -19,6 +18,7 @@ import search from "./search";
 import config from "config.json";
 import type { Cmd, CmdData, Ctx } from "~/util/base";
 import { logger } from "~/util/logger";
+import { paginateReply } from "~/util/paginator";
 
 function makePingButtons(): ActionRowBuilder<ButtonBuilder> {
   const confirm = new ButtonBuilder()
@@ -110,7 +110,7 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
 
       if (!success && config.support.searchWiki) {
         const result = await search.printSearchResults(query);
-        await Promise.all(result.map(interaction.followUp));
+        await paginateReply(interaction, result, true);
 
         await interaction.followUp(
           `Query: ${cleanContent(query, interaction.channel)}`,

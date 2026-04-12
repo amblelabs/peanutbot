@@ -83,6 +83,8 @@ async function printSearchResultsV2(
 }
 
 async function searchByQuery(ctx: Ctx, message: Message, query: string) {
+  if (!message.channel.isSendable()) return;
+
   const target = message.reference ? await message.fetchReference() : message;
   await target.reply(await printSearchResults(query));
 
@@ -113,6 +115,9 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
 
   const query = interaction.options.getString("query", true);
   await interaction.reply(await printSearchResults(query));
+
+  const result = await printSearchResultsV2(ctx, query);
+  await Promise.all(result.map((l) => interaction.reply(l)));
 }
 
 async function setup(ctx: Ctx) {

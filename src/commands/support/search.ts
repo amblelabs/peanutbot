@@ -82,24 +82,18 @@ async function printSearchResultsV2(ctx: Ctx, query: string): Promise<string> {
   return msg.join(config.wikisearch2.format.sep);
 }
 
-async function searchByQuery(ctx: Ctx, message: Message, query: string) {
-  const target = message.reference ? await message.fetchReference() : message;
-
-  await paginateReplyMessage(target, [
-    await printSearchResults(query),
-    await printSearchResultsV2(ctx, query),
-  ]);
-}
-
 async function onInteraction(ctx: Ctx, interaction: Interaction) {
   if (!interaction.isChatInputCommand()) return;
 
   const query = interaction.options.getString("query", true);
 
-  await paginateReply(interaction, [
-    ...(await printSearchResults(query)),
-    ...(await printSearchResultsV2(ctx, query)),
-  ]);
+  await paginateReply(
+    interaction,
+    await Promise.all([
+      printSearchResults(query),
+      printSearchResultsV2(ctx, query),
+    ]),
+  );
 }
 
 async function execute(
@@ -109,7 +103,12 @@ async function execute(
   args: string[],
 ) {
   const query = args.join(" ");
-  searchByQuery(ctx, message, query);
+  const target = message.reference ? await message.fetchReference() : message;
+
+  await paginateReplyMessage(target, [
+    await printSearchResults(query),
+    await printSearchResultsV2(ctx, query),
+  ]);
 }
 
 function slash(builder: SlashCommandBuilder): SharedSlashCommand {

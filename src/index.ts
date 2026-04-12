@@ -17,6 +17,8 @@ import { logger } from "./util/logger.ts";
 import wrath from "./util/angry.ts";
 import { Sequelize } from "sequelize";
 import wikisearch from "./util/wikisearch.ts";
+import { oramaStaticClient } from "./util/wikisearch2.ts";
+import { create } from "@orama/orama";
 
 // Create a new client instance
 const dbPath = path.resolve(__dirname, "../database.sqlite");
@@ -66,6 +68,17 @@ const ctx: Ctx = {
       ],
     });
   },
+
+  search: oramaStaticClient({
+    initOrama: () => {
+      return create({
+        schema: { _: "string" },
+        // https://docs.orama.com/docs/orama-js/supported-languages
+        language: "english",
+      });
+    },
+    from: config.wikisearch2.baseUrl + config.wikisearch2.index,
+  }),
 };
 
 ctx.client.once(Events.ClientReady, async (readyClient) => {

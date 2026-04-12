@@ -3,17 +3,16 @@ import {
   Message,
   Events,
   GuildMember,
-  TextChannel,
   type SendableChannels,
 } from "discord.js";
-import type { Cmd, CmdData, Ctx } from "~/util/base";
+import { format, type Cmd, type CmdData, type Ctx } from "~/util/base";
 
 const data: CmdData = {
   name: "welcome",
 };
 
 async function welcome(channel: SendableChannels, member: GuildMember) {
-  await channel.send(config.welcome.message.replaceAll("$USER", member.id));
+  await channel.send(format(config.welcome.message, member.id));
 }
 
 async function execute(

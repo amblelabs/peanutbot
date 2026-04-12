@@ -9,13 +9,17 @@ import type {
 } from "discord.js";
 import config from "config.json";
 import wikisearch from "~/util/wikisearch";
-import type { Cmd, CmdData, Ctx } from "~/util/base";
+import { format, type Cmd, type CmdData, type Ctx } from "~/util/base";
 import path from "node:path";
 import { logger } from "~/util/logger";
 import { trimJoin } from "~/util/breaker";
+import { paginate } from "~/util/paginator";
+import { createContentHighlighter } from "~/util/highlighter";
 
 async function printSearchResults(query: string): Promise<string> {
   const result = await wikisearch.search(query);
+  if (!result) return config.wikisearch.empty;
+
   const msgBuilder = [];
 
   for (const res of result) {
@@ -28,14 +32,62 @@ async function printSearchResults(query: string): Promise<string> {
     msgBuilder.push(`> ${content}\n`);
   }
 
-  if (msgBuilder.length == 0) return config.wikisearch.empty;
-
   return trimJoin({ texts: msgBuilder, prefix: config.wikisearch.header });
+}
+
+async function printSearchResultsV2(
+  ctx: Ctx,
+  query: string,
+): Promise<string[]> {
+  const result = await ctx.search.search(query);
+  if (!result) return [config.wikisearch.empty];
+
+  const highlighter = createContentHighlighter(query);
+  const msg = [config.wikisearch2.header];
+
+  let pageCounter = 0;
+
+  for (const res of result) {
+    switch (res.type) {
+      case "page":
+        msg.push(
+          format(config.wikisearch2.format.page, {
+            num: pageCounter + 1,
+            title: res.content,
+            url: config.wikisearch2.baseUrl + res.url,
+          }),
+        );
+
+        msg.push(
+          format(
+            config.wikisearch2.format.breadcrumbs,
+            res.breadcrumbs?.join(" ❯ "),
+          ),
+        );
+
+        pageCounter += 1;
+        break;
+
+      case "heading":
+        msg.push(format(config.wikisearch2.format.header, res.content));
+        break;
+
+      case "text":
+        const content = highlighter.highlightMarkdown(res.content);
+        msg.push(format(config.wikisearch2.format.text, content));
+        break;
+    }
+  }
+
+  return paginate(msg.join(config.wikisearch2.format.sep));
 }
 
 async function searchByQuery(ctx: Ctx, message: Message, query: string) {
   const target = message.reference ? await message.fetchReference() : message;
   await target.reply(await printSearchResults(query));
+
+  const result = await printSearchResultsV2(ctx, query);
+  await Promise.all(result.map((l) => target.reply(l)));
 }
 
 async function execute(

@@ -15,7 +15,7 @@ import {
   type InferAttributes,
   type InferCreationAttributes,
 } from "sequelize";
-import type { Cmd, CmdData, Ctx } from "~/util/base";
+import { format, type Cmd, type CmdData, type Ctx } from "~/util/base";
 import { logger } from "~/util/logger";
 import { parseDuration } from "~/util/time";
 
@@ -56,10 +56,7 @@ function makeReply(
       timeout: totalTime,
     });
 
-    return config.memos.success.replaceAll(
-      "$TIMESTAMP",
-      `<t:${Math.floor(totalTime / 1000)}:R>`,
-    );
+    return format(config.memos.success, Math.floor(totalTime / 1000));
   } catch (error) {
     return config.memos.badNumbers;
   }
@@ -91,7 +88,7 @@ async function tickMinute(client: Client) {
     const user = await client.users.fetch(memo.owner);
 
     try {
-      user?.send(config.memos.reminder.replaceAll("$TEXT", memo.text));
+      user?.send(format(config.memos.reminder, memo.text));
     } catch (e) {}
 
     memo.destroy();

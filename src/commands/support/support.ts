@@ -159,27 +159,33 @@ async function setup(ctx: Ctx) {
   ctx.client.on(Events.ThreadCreate, async (event) => {
     if (!event.parentId || !isFromSupportChanel(event.parentId)) return;
 
-    const message = await event.fetchStarterMessage();
+    try {
+      const message = await event.fetchStarterMessage();
+      if (!message) return;
 
-    if (!message) return;
+      const start = performance.now();
+      const [, resMsg] = await support.provideSupport(message.content);
+      const end = performance.now();
 
-    const start = performance.now();
-    const [, resMsg] = await support.provideSupport(message.content);
-    const end = performance.now();
+      logger.debug(`Provided support in ${end - start}ms.`);
 
-    logger.debug(`Provided support in ${end - start}ms.`);
+      const target = message.reference
+        ? await message.fetchReference()
+        : message;
+      await target.reply(resMsg);
 
-    const target = message.reference ? await message.fetchReference() : message;
-    await target.reply(resMsg);
+      if (config.support.searchWiki) {
+        await search.searchByQuery(ctx, message, message.content);
+      }
 
-    if (config.support.searchWiki) {
-      await search.searchByQuery(ctx, message, message.content);
+      await message.reply({
+        content: config.support.ping,
+        components: [makePingButtons()],
+      });
+    } catch {
+      logger.warn("Failed to get the support thread in {}", event.parentId);
+      return;
     }
-
-    await message.reply({
-      content: config.support.ping,
-      components: [makePingButtons()],
-    });
   });
 }
 

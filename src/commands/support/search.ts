@@ -40,10 +40,14 @@ async function printSearchResults(query: string): Promise<string> {
 
 async function printSearchResultsV2(ctx: Ctx, query: string): Promise<string> {
   const result = await ctx.search.search(query);
-  if (!result) return config.wikisearch.empty;
+  const msg = [config.wikisearch2.header];
+
+  if (!result.length) {
+    msg.push(config.wikisearch.empty);
+    return msg.join(config.wikisearch2.format.sep);
+  }
 
   const highlighter = createContentHighlighter(query);
-  const msg = [config.wikisearch2.header];
 
   let pageCounter = 0;
 
@@ -95,6 +99,7 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
   await paginateReply(
     interaction,
     await Promise.all([
+      format(config.wikisearch2.format.results, query),
       printSearchResults(query),
       printSearchResultsV2(ctx, query),
     ]),

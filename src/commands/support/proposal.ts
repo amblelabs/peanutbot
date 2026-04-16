@@ -87,7 +87,7 @@ async function handleSearch(message: Message, query: string, onlyActive: bool) {
         return (
           b.approved -
           a.approved -
-          100 * ((a.notPlanned ? -1 : 0) - (b.notPlanned ? 1 : 0))
+          100 * ((a.notPlanned ? -1 : 0) - (b.notPlanned ? -1 : 0))
         );
       })
       .forEach((item, index) => {
@@ -96,13 +96,13 @@ async function handleSearch(message: Message, query: string, onlyActive: bool) {
 
         const type = item.isPR ? "Pull Request" : "Proposal";
 
-        let stateEmoji = "🟡";
-        let reason = "Not approved";
+        let stateEmoji = "⚪"; //"🟡";
+        let reason = "Awaiting approval.";
 
         if (item.state === "open") {
           if (item.approved) {
             stateEmoji = "🟢";
-            reason = "Approved";
+            reason = "Approved.";
           }
 
           if (item.discussion) {
@@ -110,7 +110,7 @@ async function handleSearch(message: Message, query: string, onlyActive: bool) {
           }
         } else {
           if (item.notPlanned) {
-            stateEmoji = "⚪";
+            stateEmoji = "🔴"; //"⚪";
             reason = "Not planned.";
           } else {
             stateEmoji = "🟣";

@@ -19,11 +19,15 @@ async function onMessage(ctx: Ctx, message: Message) {
   }
 
   for (const searchQuery of [...message.content.matchAll(propSearchRe)]) {
-    handleSearch(message, searchQuery[1], searchQuery[2] ?? false);
+    handleSearch(message, searchQuery[1], Boolean(searchQuery[2] ?? false));
   }
 }
 
-async function handleSearch(message: Message, query: string, onlyActive: bool) {
+async function handleSearch(
+  message: Message,
+  query: string,
+  onlyActive: boolean,
+) {
   try {
     const url = new URL(
       "https://codeberg.org/api/v1/repos/AmbleLabs/ait-next/issues",
@@ -65,7 +69,7 @@ async function handleSearch(message: Message, query: string, onlyActive: bool) {
       .setDescription(`Top ${items.length} matching proposals.`);
 
     items
-      .filter((e) => e.labels.some((l) => l.name === "X: Proposal"))
+      .filter((e) => e.labels.some((l: any) => l.name === "X: Proposal"))
       .map((e) => {
         return {
           state: e.state,

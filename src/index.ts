@@ -10,6 +10,7 @@ import {
   SlashCommandBuilder,
 } from "discord.js";
 import config from "../config.json.js";
+import env from "../env.json.js";
 import type { Cmd, Ctx } from "./util/base.ts";
 import fs from "node:fs";
 import path from "node:path";
@@ -125,7 +126,7 @@ for (const folder of commandFolders) {
   }
 }
 
-const rest = new REST().setToken(config.token);
+const rest = new REST().setToken(env.token);
 
 // and deploy your commands!
 (async () => {
@@ -247,4 +248,4 @@ setInterval(tickMinute, 60 * 1000); // every minute
 setInterval(tickSleepSticker, 60 * 61 * 1000); // every hour
 
 // Log in to Discord with your client's token
-ctx.client.login(config.token);
+ctx.client.login(env.token);

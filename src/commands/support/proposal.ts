@@ -1,4 +1,4 @@
-import config from "config.json";
+import env from "env.json";
 import { type Message, EmbedBuilder } from "discord.js";
 import type { Cmd, CmdData, Ctx } from "~/util/base";
 
@@ -36,7 +36,7 @@ async function handleSearch(
     url.searchParams.append("limit", "5");
     url.searchParams.append("state", "all");
     url.searchParams.append("sort", "relevance");
-    url.searchParams.append("access_token", config.codebergToken);
+    url.searchParams.append("access_token", env.codebergToken);
 
     const response = await fetch(url, {
       headers: {

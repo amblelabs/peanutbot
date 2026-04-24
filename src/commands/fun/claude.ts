@@ -7,7 +7,7 @@ import {
 import type { Cmd, CmdData, Ctx } from "~/util/base";
 
 const data: CmdData = {
-  name: "gemini",
+  name: "claude",
 };
 
 async function execute(

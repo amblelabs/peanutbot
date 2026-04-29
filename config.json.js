@@ -146,7 +146,6 @@ Check the <#1213995158178242631> for public WIP posts.
         "## :mag: Searching in <:al_logo:1492686347666980944> [AmbleLabs Wiki](https://amblelabs.dev/wiki/):",
       results: '-# Search results for "{0}":',
       page: "\n## {num}. [{title}](<{url}>)",
-      header: "### {0}",
       text: "> {0}",
       breadcrumbs: "-# - {0}",
       sep: "\n",

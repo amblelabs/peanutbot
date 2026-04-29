@@ -4,8 +4,7 @@
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/index.ts",
-    "build": "bun src/prebuild.ts"
+    "dev": "bun --watch src/index.ts"
   },
   "devDependencies": {
     "@types/archiver": "^6.0.3",

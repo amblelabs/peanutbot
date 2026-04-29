@@ -77,7 +77,7 @@ const ctx: Ctx = {
       });
     },
     locale: "en",
-    from: config.wikisearch2.baseUrl + config.wikisearch2.index,
+    from: config.wikisearch.baseUrl + config.wikisearch.index,
   }),
 };
 

@@ -8,7 +8,6 @@ import type {
   SlashCommandBuilder,
 } from "discord.js";
 import config from "config.json";
-import wikisearch from "~/util/wikisearch";
 import { format, type Cmd, type CmdData, type Ctx } from "~/util/base";
 import path from "node:path";
 import { logger } from "~/util/logger";
@@ -19,32 +18,13 @@ import {
 } from "~/util/paginator";
 import { createContentHighlighter } from "~/util/highlighter";
 
-async function printSearchResults(query: string): Promise<string> {
-  const result = await wikisearch.search(query);
-  if (!result) return config.wikisearch.empty;
-
-  const msgBuilder = [config.wikisearch.header];
-
-  for (const res of result) {
-    const title = res.prefix ?? res.children.title;
-    msgBuilder.push(
-      `\n- [${title}](<${config.wikisearch.baseUrl}${res.route}>)`,
-    );
-
-    let content = res.children.content.trim();
-    msgBuilder.push(`> ${content}\n`);
-  }
-
-  return msgBuilder.join("\n");
-}
-
 async function printSearchResultsV2(ctx: Ctx, query: string): Promise<string> {
   const result = await ctx.search.search(query);
-  const msg = [config.wikisearch2.header];
+  const msg = [config.wikisearch.format.header];
 
   if (!result.length) {
-    msg.push(config.wikisearch.empty);
-    return msg.join(config.wikisearch2.format.sep);
+    msg.push(config.wikisearch.format.empty);
+    return msg.join(config.wikisearch.format.sep);
   }
 
   const highlighter = createContentHighlighter(query);
@@ -55,16 +35,16 @@ async function printSearchResultsV2(ctx: Ctx, query: string): Promise<string> {
     switch (res.type) {
       case "page":
         msg.push(
-          format(config.wikisearch2.format.page, {
+          format(config.wikisearch.format.page, {
             num: pageCounter + 1,
             title: res.content,
-            url: config.wikisearch2.baseUrl + res.url,
+            url: config.wikisearch.baseUrl + res.url,
           }),
         );
 
         msg.push(
           format(
-            config.wikisearch2.format.breadcrumbs,
+            config.wikisearch.format.breadcrumbs,
             res.breadcrumbs?.join(" ❯ "),
           ),
         );
@@ -73,14 +53,14 @@ async function printSearchResultsV2(ctx: Ctx, query: string): Promise<string> {
         break;
 
       case "heading":
-        msg.push(format(config.wikisearch2.format.header, res.content));
+        msg.push(format(config.wikisearch.format.header, res.content));
         break;
 
       case "text":
         const content = highlighter
           .highlightMarkdown(res.content)
           .split("\n")
-          .map((s) => format(config.wikisearch2.format.text, s))
+          .map((s) => format(config.wikisearch.format.text, s))
           .join("\n");
 
         msg.push(content);
@@ -88,7 +68,7 @@ async function printSearchResultsV2(ctx: Ctx, query: string): Promise<string> {
     }
   }
 
-  return msg.join(config.wikisearch2.format.sep);
+  return msg.join(config.wikisearch.format.sep);
 }
 
 async function onInteraction(ctx: Ctx, interaction: Interaction) {
@@ -99,8 +79,7 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
   await paginateReply(
     interaction,
     await Promise.all([
-      format(config.wikisearch2.format.results, query),
-      printSearchResults(query),
+      format(config.wikisearch.format.results, query),
       printSearchResultsV2(ctx, query),
     ]),
   );
@@ -109,10 +88,7 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
 async function searchByQuery(ctx: Ctx, message: Message, query: string) {
   const target = message.reference ? await message.fetchReference() : message;
 
-  await paginateReplyMessage(target, [
-    await printSearchResults(query),
-    await printSearchResultsV2(ctx, query),
-  ]);
+  await paginateReplyMessage(target, await printSearchResultsV2(ctx, query));
 }
 
 async function execute(
@@ -133,22 +109,6 @@ function slash(builder: SlashCommandBuilder): SharedSlashCommand {
     );
 }
 
-async function setup(ctx: Ctx) {
-  try {
-    const resp = await fetch(config.wikisearch.indexUrl, {
-      signal: AbortSignal.timeout(5000),
-    });
-    const json = await resp.json();
-    wikisearch.preloadIndex(json);
-  } catch (e) {
-    logger.warn("Failed to fetch index, using fallback!");
-    logger.error(e);
-    const indexPath = path.resolve(__dirname, "../../../index.json");
-    const data = require(indexPath);
-    wikisearch.preloadIndex(data);
-  }
-}
-
 const data: CmdData = {
   name: "search",
 };
@@ -156,12 +116,7 @@ const data: CmdData = {
 export default {
   data,
   slash,
-  setup,
   onInteraction,
-
-  searchByQuery,
-  printSearchResults,
 } as Cmd & {
-  printSearchResults: (arg0: string) => Promise<string>;
   searchByQuery: (arg0: Ctx, arg1: Message, arg2: string) => Promise<void>;
 };

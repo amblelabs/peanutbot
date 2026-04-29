@@ -142,23 +142,18 @@ Check the <#1213995158178242631> for public WIP posts.
     messages: 100,
   },
   wikisearch: {
-    indexUrl: "https://amblelabs.dev/ait-wiki/en.search-data.json",
-    baseUrl: "https://amblelabs.dev/ait-wiki/",
-    empty: "*There was nothing on the wiki*",
-    header: "## Searching in <:al_ait:1393920126645960704> AIT Wiki:",
-  },
-  wikisearch2: {
     baseUrl: "https://amblelabs.dev/wiki",
     index: "/api/search",
-    header:
-      "## :mag: Searching in <:al_logo:1492686347666980944> [AmbleLabs Wiki](https://amblelabs.dev/wiki/):",
     format: {
+      header:
+        "## :mag: Searching in <:al_logo:1492686347666980944> [AmbleLabs Wiki](https://amblelabs.dev/wiki/):",
       results: '-# Search results for "{0}":',
       page: "\n## {num}. [{title}](<{url}>)",
       header: "### {0}",
       text: "> {0}",
       breadcrumbs: "-# - {0}",
       sep: "\n",
+      empty: "*There was nothing on the wiki*",
     },
   },
   bridge: {

@@ -54,7 +54,7 @@ Are you sure you want to ping support?
       bugAit:
         "# [Click here to report an ](<https://github.com/amblelabs/ait/issues/new?template=1-bug-report.yaml>)<:al_ait:1393920126645960704>[ AIT bug](<https://github.com/amblelabs/ait/issues/new?template=1-bug-report.yaml>)",
       bugStargate:
-        "# [Click here to report a ](<https://github.com/amblelabs/stargate/issues/new?template=1-bug-report.yaml>)<:al_stargate:1393920339016417340>[ Stargate bug](<https://github.com/amblelabs/stargate/issues/new?template=1-bug-report.yaml>)",
+        "# [Click here to report a ](<https://github.com/amblelabs/stargate/issues/new?template=1-bug-report.yaml>)<:al_stargate:1504663279421882378>[ Stargate bug](<https://github.com/amblelabs/stargate/issues/new?template=1-bug-report.yaml>)",
       wiki: "# <:al_logo:1492686347666980944>[ AmbleLabs Wiki](https://amblelabs.dev/wiki/)",
       eta: `
 There's no ETA. The mod will be out when it's out.

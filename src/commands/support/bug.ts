@@ -31,7 +31,7 @@ async function execute(
 
 function slash(builder: SlashCommandBuilder): SharedSlashCommand {
   return builder
-    .setDescription("Sends a bug report form.")
+    .setDescription("Sends a link to a bug report form on Github.")
     .addStringOption((option) =>
       option
         .setName("target")

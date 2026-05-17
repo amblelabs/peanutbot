@@ -59,6 +59,7 @@ Are you sure you want to ping support?
       eta: `
 There's no ETA. The mod will be out when it's out.
 Check the <#1213995158178242631> for public WIP posts.
+Donate to theo (https://boosty.to/dr.theo) or loqor (https://ko-fi.com/loqor) or the team's (https://github.com/sponsors/amblelabs) or duzo's github (https://github.com/sponsors/duzos) to access private WIP posts and releases.
       `,
     },
   },

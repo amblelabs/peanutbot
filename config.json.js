@@ -60,7 +60,7 @@ Are you sure you want to ping support?
 There's no ETA. The mod will be out when it's out.
 Check the <#1213995158178242631> channel for public WIP posts.
 
-Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi.com/loqor>) or [Duzo](<https://github.com/sponsors/duzos>) to access donator exclsusive WIP posts & releases and to help support our projects.
+Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi.com/loqor>), [Duzo](<https://github.com/sponsors/duzos>) or the discord server shop to access donator exclsusive WIP posts & releases and to help support our projects.
       `,
     },
   },

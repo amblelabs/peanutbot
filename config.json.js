@@ -10,7 +10,7 @@ export default {
 - If you require support you can use the \`?support\` command! Just type it followed by your problem, e.g.:
 \`?support for some reason tardis boti has buggy rendering, im on forge btw\`
 - The bot will try to assist you, howver if you need human support you can ping our support members by doing \`?support ping\`!
-- We have an official wiki too! You can quickly access it by running \`?wiki\` or \`?search whatever goes here\` to search the wiki.
+- We have an official wiki too! You can quickly access it by running \`?wiki\` or \`/search whatever goes here\` to search the wiki.
 
 Have fun, <@{0}>!`,
   },
@@ -72,7 +72,7 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi
 - ?eta - about ETA
 - ?forge - forge FAQ
 - ?support [ping|<query>] - provides support
-- ?search [<query>] - searches the AIT wiki
+- /search [<query>] - searches the AIT wiki
     `,
   },
   memos: {

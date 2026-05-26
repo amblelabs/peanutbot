@@ -10,7 +10,7 @@ export default {
 - If you require support you can use the \`?support\` command! Just type it followed by your problem, e.g.:
 \`?support for some reason tardis boti has buggy rendering, im on forge btw\`
 - The bot will try to assist you, howver if you need human support you can ping our support members by doing \`?support ping\`!
-- We have an official wiki too! You can quickly access it by running \`?wiki\` or \`?search whatever goes here\` to search the wiki.
+- We have an official wiki too! You can quickly access it by running \`?wiki\` or \`/search whatever goes here\` to search the wiki.
 
 Have fun, <@{0}>!`,
   },
@@ -58,7 +58,9 @@ Are you sure you want to ping support?
       wiki: "# <:al_logo:1492686347666980944>[ AmbleLabs Wiki](https://amblelabs.dev/wiki/)",
       eta: `
 There's no ETA. The mod will be out when it's out.
-Check the <#1213995158178242631> for public WIP posts.
+Check the <#1213995158178242631> channel for public WIP posts.
+
+Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi.com/loqor>), [Duzo](<https://github.com/sponsors/duzos>) or the discord server shop to access donator exclsusive WIP posts & releases and to help support our projects.
       `,
     },
   },
@@ -70,7 +72,7 @@ Check the <#1213995158178242631> for public WIP posts.
 - ?eta - about ETA
 - ?forge - forge FAQ
 - ?support [ping|<query>] - provides support
-- ?search [<query>] - searches the AIT wiki
+- /search [<query>] - searches the AIT wiki
     `,
   },
   memos: {

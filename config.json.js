@@ -84,14 +84,15 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi
 {0}
     `,
   },
+  // FOR THE LOVE OF GOD IM DONE SEEING THE STUPID PEANUT WEBP AND SLEEP IMAGE IN GENERAL OH MY GODDDDDDDDD - Loqor
   fun: {
-    meow: {
+    /* meow: {
       enabled: true,
       channel: "1213989171241426954",
       role: "1325521300860567683",
       min: 120,
       max: 360,
-    },
+    }, */
     pet: {
       enabled: true,
     },
@@ -99,7 +100,7 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi
       enabled: true,
       role: "1325521300860567683",
     },
-    sleep: {
+    /*sleep: {
       enabled: true,
       channel: "1213989171241426954",
       role: "1325521300860567683",
@@ -107,7 +108,7 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi
       timer: 120 * 2, // 2 hours
       sticker: "1392176036216832080",
       awakeSticker: "1389237472340349139",
-    },
+    },*/
     wrath: {
       message:
         "https://raw.githubusercontent.com/amblelabs/peanutbot/refs/heads/master/assets/angry.png",
@@ -133,8 +134,8 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi
       "1389237472340349139",
       "1392176036216832080",
     ],
-    gemini:
-      "https://raw.githubusercontent.com/amblelabs/peanutbot/refs/heads/master/assets/gemini.webp",
+    // gemini:
+    //  "https://raw.githubusercontent.com/amblelabs/peanutbot/refs/heads/master/assets/gemini.webp",
     claude:
       "https://raw.githubusercontent.com/amblelabs/peanutbot/refs/heads/master/assets/claude.webp",
   },

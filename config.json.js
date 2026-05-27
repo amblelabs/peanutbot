@@ -116,6 +116,9 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi
       "https://tenor.com/view/high-five-cat-five-meow-five-bros-friends-gif-17956519",
       "https://tenor.com/view/cat-cat-high-five-okay-sour%27s-cat-cute-cat-gif-13717594879666614680",
     ],
+    agree:[
+      "https://tenor.com/en-GB/view/tamm-cat-gif-1067625986375071026"
+    ],
     blame: {
       antifun: [
         "https://cdn.discordapp.com/attachments/1098448459717169191/1429812098455568434/togif-3.gif?ex=69acc608&is=69ab7488&hm=929a6282233220d13d95b344d8914336170ab5280ee5630989f560b8db50b63d",

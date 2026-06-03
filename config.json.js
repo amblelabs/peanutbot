@@ -60,7 +60,7 @@ Are you sure you want to ping support?
 There's no ETA. The mod will be out when it's out.
 Check the <#1213995158178242631> channel for public WIP posts.
 
-Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi.com/loqor>), [Duzo](<https://github.com/sponsors/duzos>) or the discord server shop to access donator exclsusive WIP posts & releases and to help support our projects.
+Consider donating to [Theo](<https://boosty.to/dr.theo>), [Duzo](<https://github.com/sponsors/duzos>), [Addie](<https://ko-fi.com/addi3dabaddie>), [Monke](<https://ko-fi.com/monkedev>) or the discord server shop to access donator exclsusive WIP posts & releases and to help support our projects.
       `,
     },
   },
@@ -89,8 +89,8 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi
       enabled: true,
       channel: "1213989171241426954",
       role: "1325521300860567683",
-      min: 120,
-      max: 360,
+      min: 60*3,
+      max: 60*6,
     },
     pet: {
       enabled: true,
@@ -104,7 +104,7 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi
       channel: "1213989171241426954",
       role: "1325521300860567683",
       cmdDelay: 2,
-      timer: 120 * 2, // 2 hours
+      timer: 60 * 4, // 4 hours
       sticker: "1392176036216832080",
       awakeSticker: "1389237472340349139",
     },

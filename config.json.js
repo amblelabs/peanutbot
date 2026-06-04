@@ -132,7 +132,6 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Duzo](<https://github
       "1389237403725725749",
       "1389237472340349139",
       "1392176036216832080",
-      "https://raw.githubusercontent.com/amblelabs/peanutbot/refs/heads/master/assets/peanut_blursed_1.webm"
     ],
     gemini:
       "https://raw.githubusercontent.com/amblelabs/peanutbot/refs/heads/master/assets/gemini.webp",

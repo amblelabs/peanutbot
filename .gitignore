@@ -185,3 +185,4 @@ index.json
 manage_bot.sh
 update_bot.sh
 commands.txt
+src/util/great.ts

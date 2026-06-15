@@ -10,7 +10,7 @@ const transport = pino.transport({
             target: 'pino-pretty',
             options: {
                 colorize: false,
-                destination: `logs/${start.getFullYear()}-${start.getMonth()}-${start.getDay()}-${start.getHours()}-${start.getMinutes()}.log`,
+                destination: `logs/${start.getFullYear()}-${start.getMonth()}-${start.getDate()}-${start.getHours()}-${start.getMinutes()}.log`,
             },
         },
         {

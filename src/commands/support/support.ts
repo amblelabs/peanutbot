@@ -98,7 +98,11 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
         flags: [MessageFlags.Ephemeral],
       });
     } else if (subcommand === "search" && interaction.channel) {
-      const query = interaction.options.getString("query", true);
+      // MODIFIED: Removed ', true' so it safely returns null instead of crashing
+      const query = interaction.options.getString("query");
+
+      // NEW: One-line safety guard to catch empty queries cleanly
+      if (!query) return interaction.reply({ content: "Search query cannot be blank.", flags: [MessageFlags.Ephemeral] });
 
       const start = performance.now();
       const [success, resMsg] = await support.provideSupport(query);
@@ -107,13 +111,12 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
       logger.debug(`Provided support in ${end - start}ms.`);
 
       await interaction.reply(resMsg);
-
       if (!success && config.support.searchWiki) {
-        const result = await search.printSearchResults(query);
+        const result = await search.printSearchResultsV2(ctx, query);
         await paginateReply(interaction, result, "follow");
 
         await interaction.followUp(
-          `Query: ${cleanContent(query, interaction.channel)}`,
+            `Query: ${cleanContent(query, interaction.channel)}`,
         );
         await interaction.followUp({
           content: config.support.ping,
@@ -128,20 +131,30 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
 
       if (interaction.message.reference) {
         const ref = await interaction.message.fetchReference();
-        await ref.reply(ogReply);
+
+        // MODIFIED: Changed from a string to an object to allow the role mention
+        await ref.reply({
+          content: ogReply,
+          allowedMentions: {roles: [config.support.role]},
+        });
 
         interaction.reply({
           content: "Pinged support!",
           flags: [MessageFlags.Ephemeral],
         });
       } else {
-        interaction.reply(ogReply);
+        // MODIFIED: Changed from a string to an object to allow the role mention
+        interaction.reply({
+          content: ogReply,
+          allowedMentions: {roles: [config.support.role]},
+        });
       }
 
       if (!interaction.message.flags.has(MessageFlags.Ephemeral)) {
         try {
           interaction.message.delete();
-        } catch (e) {}
+        } catch (e) {
+        }
       }
     }
   }
@@ -182,10 +195,11 @@ async function setup(ctx: Ctx) {
         content: config.support.ping,
         components: [makePingButtons()],
       });
-    } catch {
-      logger.warn("Failed to get the support thread in {}", event.parentId);
-      return;
-    }
+    }catch (error) {
+    // This will print the exact line number and reason Discord/Node got mad
+    logger.error(`Error in ThreadCreate for parent ${event.parentId}:`, error);
+    return;
+  }
   });
 }
 

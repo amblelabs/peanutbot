@@ -117,6 +117,9 @@ export default {
   data,
   slash,
   onInteraction,
+  searchByQuery,        // Added so your ThreadCreate setup can see it
+  printSearchResultsV2, // Added so Line 112 in support.ts can see it
 } as Cmd & {
-  searchByQuery: (arg0: Ctx, arg1: Message, arg2: string) => Promise<void>;
+  searchByQuery: (ctx: Ctx, message: Message, query: string) => Promise<void>;
+  printSearchResultsV2: (ctx: Ctx, query: string) => Promise<string>;
 };

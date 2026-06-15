@@ -23,7 +23,7 @@ Have fun, <@{0}>!`,
         cooldown:
           "The command is on cooldown! Someone has already notified MC admins. Command will be usable again {0}.",
         error: "Failed to notify MC admins! Contact your server's admin.",
-        ping: "<@&1359062510518538351> by <@{0}>",
+        ping: "<@&1358537058120896532> by <@{0}>",
       },
       enabled: true,
     },
@@ -133,6 +133,9 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Duzo](<https://github
       "1389237472340349139",
       "1392176036216832080",
       "1515646969064853635",
+    ],
+    peanutV:[
+        "https://raw.githubusercontent.com/amblelabs/peanutbot/refs/heads/master/assets/peanut_blursed_1.webm"
     ],
     gemini:
       "https://raw.githubusercontent.com/amblelabs/peanutbot/refs/heads/master/assets/gemini.webp",

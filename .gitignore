@@ -2,6 +2,7 @@
 
 # Logs
 
+bot_output.log
 _.log
 npm-debug.log_
 yarn-debug.log*
@@ -179,3 +180,9 @@ logs/*.log
 index.json
 *.zip
 .direnv
+
+#things i run
+manage_bot.sh
+update_bot.sh
+src/util/say.ts
+commands.txt

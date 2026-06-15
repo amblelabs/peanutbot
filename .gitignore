@@ -184,5 +184,4 @@ index.json
 #things i run
 manage_bot.sh
 update_bot.sh
-src/util/say.ts
 commands.txt

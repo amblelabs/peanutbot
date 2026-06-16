@@ -117,7 +117,7 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Duzo](<https://github
       "https://tenor.com/view/cat-cat-high-five-okay-sour%27s-cat-cute-cat-gif-13717594879666614680",
     ],
     agree:[
-      "https://tenor.com/en-GB/view/tamm-cat-gif-1067625986375071026"
+      "https://tenor.com/bq1TWmhuIyk.gif"
     ],
     blame: {
       antifun: [

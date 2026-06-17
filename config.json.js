@@ -9,7 +9,7 @@ export default {
 - Make sure to get the mod roles in <id:customize>
 - If you require support you can use the \`?support\` command! Just type it followed by your problem, e.g.:
 \`?support for some reason tardis boti has buggy rendering, im on forge btw\`
-- The bot will try to assist you, howver if you need human support you can ping our support members by doing \`?support ping\`!
+- The bot will try to assist you, however if you need human support you can ping our support members by doing \`?support ping\`!
 - We have an official wiki too! You can quickly access it by running \`?wiki\` or \`/search whatever goes here\` to search the wiki.
 
 Have fun, <@{0}>!`,
@@ -172,11 +172,13 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Duzo](<https://github
       "1213989170964340883": "01KHEGJB9KF5Y8PWXQJBP5DF4H",
       "1213989171241426954": "01KHEFHPG9WDZJ8XTBM5A4J2ZV",
       "1214761460824150046": "01KHFFY893E1D84YG5YPHC51QE",
+      "1391859999881564260": "01KVA74WYBY6FBJS1VZNVJTMD5",
     },
     emojis: {
       "<:al_clueless:1258762246398410854>": ":01KHEG7QM5DPK1BSRD2SCPQNBJ:",
       "<:al_unclueless:1426311299024945254>": ":01KHEG0T4JNKXKTYVY7FMN99ZZ:",
       "<:al_house:1356903328671334451>": ":01KHFBMFYJE4SW8M9XYPF70SP7:",
+      "<a:al_explosion:1467652202356150272>": ":01KVAMF92JKDHM19513A2J82JG:",
     },
   },
 };

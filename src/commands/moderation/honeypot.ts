@@ -1,6 +1,6 @@
 import type { Message } from "discord.js";
-import type { Ctx, Cmd } from "../../util/base.ts";
-import { logger } from "../../util/logger.ts";
+import type { Ctx, Cmd } from "~/util/base.ts";
+import { logger } from "~/util/logger.ts";
 import config from "config.json";
 // 👇 PASTE YOUR TRAP CHANNEL ID HERE
 const HONEYPOT_CHANNEL_ID = config.honeypot.channelId;

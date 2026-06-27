@@ -1,11 +1,11 @@
 import type { Message } from "discord.js";
 import type { Ctx, Cmd } from "../../util/base.ts";
 import { logger } from "../../util/logger.ts";
-
+import config from "config.json";
 // 👇 PASTE YOUR TRAP CHANNEL ID HERE
-const HONEYPOT_CHANNEL_ID = "1520480898741567579";
+const HONEYPOT_CHANNEL_ID = config.honeypot.channelId;
 
-const honeypotModule: Cmd = {
+export default {
     data: {
         name: "honeypot",
     },
@@ -16,21 +16,14 @@ const honeypotModule: Cmd = {
 
     onMessage: async (ctx: Ctx, message: Message) => {
         if (message.channelId !== HONEYPOT_CHANNEL_ID) return;
-        if (message.author.id === ctx.client.user?.id || message.webhookId) return;
+        if (message.author.bot || message.webhookId) return;
 
-        // Ensure this is happening inside a server, not a DM
+        // it screams at me if i dont leave this here and idk why
         if (!message.guild) return;
 
         try {
             // 👇 Fetch the member first to guarantee they aren't missing from the cache
             const member = await message.guild.members.fetch(message.author.id);
-
-            // Safety check: Don't try to ban server owners or admins
-            if (!member.bannable) {
-                logger.warn(`Honeypot triggered by unbannable user (Staff/Admin): ${message.author.tag}`);
-                await message.delete().catch(() => null);
-                return;
-            }
 
             const violatorTag = message.author.tag;
             const violatorId = message.author.id;
@@ -39,8 +32,8 @@ const honeypotModule: Cmd = {
 
             // Execute the ban on the fetched member
             await member.ban({
-                deleteMessageSeconds: 7 * 24 * 60 * 60,
-                reason: "Automated ban, they went in the honeypot",
+                deleteMessageSeconds: config.honeypot.deleteMessageSeconds,
+                reason: config.honeypot.banDescription,
             });
 
             logger.info(`Successfully banned user ${violatorTag} and purged their message history.`);
@@ -50,6 +43,4 @@ const honeypotModule: Cmd = {
             logger.error(`Failed to execute honeypot ban for ID ${message.author.id}:`, error);
         }
     },
-};
-
-export default honeypotModule;
+} as Cmd;

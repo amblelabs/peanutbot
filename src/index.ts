@@ -18,7 +18,7 @@ import { logger } from "./util/logger.ts";
 import { Sequelize } from "sequelize";
 import { oramaStaticClient } from "./util/wikisearch2.ts";
 import { create as createOrama } from "@orama/orama";
-
+import { initializeHoneypot } from "../src/commands/moderation/honeypot.ts";
 // Create a new client instance
 const dbPath = path.resolve(__dirname, "../database.sqlite");
 
@@ -88,7 +88,7 @@ ctx.client.once(Events.ClientReady, async (readyClient) => {
 
   ctx.sql.authenticate();
   ctx.wakeUp();
-
+  initializeHoneypot(readyClient);
   logger.info(`Ready! Logged in as ${readyClient.user.tag}`);
 });
 

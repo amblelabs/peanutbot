@@ -2,8 +2,6 @@ import type { Message } from "discord.js";
 import type { Ctx, Cmd } from "../../util/base.ts";
 import { logger } from "../../util/logger.ts";
 import config from "config.json";
-// 👇 PASTE YOUR TRAP CHANNEL ID HERE
-const HONEYPOT_CHANNEL_ID = config.honeypot.channelId;
 
 export default {
     data: {
@@ -11,11 +9,11 @@ export default {
     },
 
     setup: (ctx: Ctx) => {
-        logger.info(`Honeypot security system active for channel ID: ${HONEYPOT_CHANNEL_ID}`);
+        logger.info(`Honeypot security system active for channel ID: ${config.honeypot.channelId}`);
     },
 
     onMessage: async (ctx: Ctx, message: Message) => {
-        if (message.channelId !== HONEYPOT_CHANNEL_ID) return;
+        if (message.channelId !== config.honeypot.channelId) return;
         if (message.author.bot || message.webhookId) return;
 
         // it screams at me if i dont leave this here and idk why

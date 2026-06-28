@@ -152,7 +152,6 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi
     banDescription: "Automated ban, they went in the honeypot",
     deleteMessageSeconds: 7 * 24 * 60 * 60,
   },
-
   wikisearch: {
     baseUrl: "https://amblelabs.dev/wiki",
     index: "/api/search",

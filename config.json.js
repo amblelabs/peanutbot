@@ -63,7 +63,7 @@ Check the <#1213995158178242631> channel for public WIP posts.
 Consider donating to one of the following people:
 - [Theo](<https://boosty.to/dr.theo>)
 - [Loqor](<https://ko-fi.com/loqor>)
-- [Addie](<https://ko-fi.com/addi3dabaddie>)
+- [Addie](<https://www.patreon.com/cw/Addie_Astarr>)
 - [Classic](<https://ko-fi.com/redpanda39441>)
 ...or the discord server shop to access donator exclsusive WIP posts & releases and to help support our projects.
       `,

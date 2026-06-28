@@ -55,13 +55,14 @@ export default {
                 reason: config.honeypot.banDescription,
             });
 
-            // 👇 3. The Optimization!
-            // Update the memory instantly, then fire off exactly ONE SQL operation (UPDATE)
+
             cachedBanCount++;
-            await HoneypotDb.update(
-                { totalBans: cachedBanCount },
-                { where: { id: "global" } }
-            );
+
+            // Tell the database to safely increment its own number atomically
+            await HoneypotDb.increment("totalBans", {
+                by: 1,
+                where: { id: "global" }
+            });
 
             logger.info(`Successfully banned user ${violatorTag} and purged their message history. Total all-time bans: ${cachedBanCount}`);
 

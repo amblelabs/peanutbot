@@ -147,6 +147,11 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi
     period: 60 * 60 * 1000,
     messages: 100,
   },
+  honeypot:{
+    channelId: "1520480898741567579",
+    banDescription: "Automated ban, they went in the honeypot",
+    deleteMessageSeconds: 7 * 24 * 60 * 60,
+  },
   wikisearch: {
     baseUrl: "https://amblelabs.dev/wiki",
     index: "/api/search",

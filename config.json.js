@@ -151,6 +151,7 @@ Consider donating to [Theo](<https://boosty.to/dr.theo>), [Loqor](<https://ko-fi
     channelId: "1520480898741567579",
     banDescription: "Automated ban, they went in the honeypot",
     deleteMessageSeconds: 7 * 24 * 60 * 60,
+    logChannelId: "1225097418165588049",
   },
   wikisearch: {
     baseUrl: "https://amblelabs.dev/wiki",

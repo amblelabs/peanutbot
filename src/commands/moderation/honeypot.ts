@@ -74,15 +74,7 @@ export default {
                 );
             }
 
-      /*      const dossierChannel = await ctx.client.channels.fetch(config.honeypot.dossierChannelId).catch(() => null);
-            if (dossierChannel && dossierChannel.isSendable()) {
-                const banPost = new EmbedBuilder()
-                    .setTitle(`${displayName} / ${violatorId}`)
-                    .setDescription(`Punishment: Ban\nBy <@${ctx.client.user?.id}>\nLength: Permanent\nReason: HONEYPOT\n`)
-                    .setColor(0xFF0000); // Adds a nice red warning color to the side of the post
 
-                await dossierChannel.send({ embeds: [banPost] });
-            }*/
         } catch (error) {
             // This will catch errors if the fetch fails (e.g., they instantly left the server)
             // or if the Discord API blocks the ban.

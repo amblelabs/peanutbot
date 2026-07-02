@@ -79,7 +79,7 @@ export default {
                 );
             }
         } catch (error) {
-            logger.error(`Failed to execute honeypot ban sequence:`, error);
+            logger.error(`Failed to execute honeypot ban for ID ${message.author.id}:`, error);
         }
     },
 } as Cmd;

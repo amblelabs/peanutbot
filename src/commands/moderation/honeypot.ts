@@ -46,10 +46,12 @@ export default {
     onMessage: async (ctx: Ctx, message: Message) => {
         if (message.channelId !== config.honeypot.channelId) return;
         if (message.author.bot || message.webhookId) return;
+
         if (!message.guild) return;
 
         try {
             const member = await message.guild.members.fetch(message.author.id);
+
             const violatorTag = message.author.tag;
             const violatorId = message.author.id;
             const displayName = member.user.globalName || member.user.username;
@@ -73,7 +75,7 @@ export default {
 
             // 👇 Cleaned up: No inline .catch(), no null checks. Just straight to the point.
             const logChannel = await ctx.client.channels.fetch(config.honeypot.logChannelId);
-            if (logChannel.isSendable()) {
+            if (logChannel && logChannel.isSendable()) {
                 await logChannel.send(
                     `**HONEYPOT TRIGGERED**\n**Banned:** \`${violatorTag}\` (${violatorId})\n**Total Bans (All-Time):** \`${trueBanCount}\``
                 );

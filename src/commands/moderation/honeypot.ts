@@ -1,14 +1,24 @@
 import { EmbedBuilder, type Message } from "discord.js";
-import { DataTypes, type ModelStatic, type Model } from "sequelize";
+import {
+    DataTypes,
+    Model,
+    type CreationOptional,
+    type InferAttributes,
+    type InferCreationAttributes
+} from "sequelize";
 import type { Ctx, Cmd } from "../../util/base.ts";
 import { logger } from "../../util/logger.ts";
 import config from "config.json";
 
-// Added the database model variable here
-let HoneypotDb: ModelStatic<Model<any, any>>;
+export class HoneypotStat extends Model<
+    InferAttributes<HoneypotStat>,
+    InferCreationAttributes<HoneypotStat>
+> {
+    declare id: string;
+    declare totalBans: CreationOptional<number>;
+}
 
-// 👇 1. Added a cache variable to hold the count in memory
-let cachedBanCount = 0;
+// REMOVED: let cachedBanCount = 0;
 
 export default {
     data: {
@@ -16,68 +26,64 @@ export default {
     },
 
     setup: async (ctx: Ctx) => {
-        HoneypotDb = ctx.sql.define("honeypot_stats", {
-            id: { type: DataTypes.STRING, primaryKey: true },
-            totalBans: { type: DataTypes.INTEGER, defaultValue: 0 },
-        });
-        await HoneypotDb.sync();
+        HoneypotStat.init(
+            {
+                id: { type: DataTypes.STRING, primaryKey: true },
+                totalBans: { type: DataTypes.INTEGER, defaultValue: 0 },
+            },
+            { sequelize: ctx.sql }
+        );
 
-        // 👇 2. Guarantee the row exists and cache the count ONCE when the bot starts
-        const [stat] = await HoneypotDb.findOrCreate({
+        await HoneypotStat.sync();
+
+        const [stat] = await HoneypotStat.findOrCreate({
             where: { id: "global" },
-            defaults: { totalBans: 0 }
+            defaults: {
+                id: "global", // 👇 Add this line to satisfy the TypeScript compiler
+                totalBans: 0
+            }
         });
-        cachedBanCount = stat.get("totalBans") as number;
 
-        logger.info(`Honeypot active for channel ID: ${config.honeypot.channelId}. All-time bans: ${cachedBanCount}`);
+        logger.info(`Honeypot security system active for channel ID: ${config.honeypot.channelId}. All-time bans: ${stat.totalBans}`);
     },
 
     onMessage: async (ctx: Ctx, message: Message) => {
         if (message.channelId !== config.honeypot.channelId) return;
         if (message.author.bot || message.webhookId) return;
-
-        // it screams at me if i dont leave this here and idk why
         if (!message.guild) return;
 
         try {
-            // Fetch the member first to guarantee they aren't missing from the cache
             const member = await message.guild.members.fetch(message.author.id);
-
             const violatorTag = message.author.tag;
             const violatorId = message.author.id;
             const displayName = member.user.globalName || member.user.username;
 
             logger.info(`HONEYPOT TRIGGERED! Attempting to ban: ${violatorTag} (${violatorId})`);
 
-            // Execute the ban on the fetched member
             await member.ban({
                 deleteMessageSeconds: config.honeypot.deleteMessageSeconds,
                 reason: config.honeypot.banDescription,
             });
 
-
-            cachedBanCount++;
-
-            // Tell the database to safely increment its own number atomically
-            await HoneypotDb.increment("totalBans", {
+            // 👇 1. Atomically increment the database first (Immune to race conditions)
+            await HoneypotStat.increment("totalBans", {
                 by: 1,
                 where: { id: "global" }
             });
 
-            logger.info(`Successfully banned user ${violatorTag} and purged their message history. Total all-time bans: ${cachedBanCount}`);
+            // 👇 2. Fetch the newly updated row to get the guaranteed accurate count
+            const stat = await HoneypotStat.findByPk("global");
+            const trueBanCount = stat?.totalBans ?? 0;
 
-            // Send the alert to your log channel
+            logger.info(`Successfully banned user ${violatorTag}. Total all-time bans: ${trueBanCount}`);
+
             const logChannel = await ctx.client.channels.fetch(config.honeypot.logChannelId).catch(() => null);
             if (logChannel && logChannel.isSendable()) {
                 await logChannel.send(
-                    `**HONEYPOT TRIGGERED**\n**Banned:** \`${violatorTag}\` (${violatorId})\n**Total Bans (All-Time):** \`${cachedBanCount}\``
+                    `**HONEYPOT TRIGGERED**\n**Banned:** \`${violatorTag}\` (${violatorId})\n**Total Bans (All-Time):** \`${trueBanCount}\``
                 );
             }
-
-
         } catch (error) {
-            // This will catch errors if the fetch fails (e.g., they instantly left the server)
-            // or if the Discord API blocks the ban.
             logger.error(`Failed to execute honeypot ban for ID ${message.author.id}:`, error);
         }
     },

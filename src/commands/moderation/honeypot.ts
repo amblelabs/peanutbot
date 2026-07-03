@@ -93,6 +93,7 @@ export default {
                 // Creates a brand new post/thread inside the forum channel
                 await dossierChannel.threads.create({
                     name: `${displayName} / ${violatorId}`,
+                    appliedTags: [config.honeypot.banTag],
                     message: { content: banDesc },
                 });
             }

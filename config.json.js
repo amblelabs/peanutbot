@@ -158,6 +158,7 @@ Consider donating to one of the following people:
     deleteMessageSeconds: 7 * 24 * 60 * 60,
     logChannelId: "1225097418165588049",
     dossierChannelId: "1302637740973887488",
+    banTag: "1406738115468722257",
   },
   wikisearch: {
     baseUrl: "https://amblelabs.dev/wiki",

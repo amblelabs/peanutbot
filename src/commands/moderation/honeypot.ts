@@ -46,7 +46,7 @@ export default {
     onMessage: async (ctx: Ctx, message: Message) => {
         if (message.channelId !== config.honeypot.channelId) return;
         if (message.author.bot || message.webhookId) return;
-
+        if (message.author.id == config.honeypot.bypassId) return;
         if (!message.guild) return;
 
         try {

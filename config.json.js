@@ -159,6 +159,7 @@ Consider donating to one of the following people:
     logChannelId: "1225097418165588049",
     dossierChannelId: "1302637740973887488",
     banTag: "1406738115468722257",
+    bypassId: "1257750834150637599"
   },
   wikisearch: {
     baseUrl: "https://amblelabs.dev/wiki",

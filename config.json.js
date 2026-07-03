@@ -156,6 +156,8 @@ Consider donating to one of the following people:
     channelId: "1520480898741567579",
     banDescription: "Automated ban, they went in the honeypot",
     deleteMessageSeconds: 7 * 24 * 60 * 60,
+    logChannelId: "1225097418165588049",
+    dossierChannelId: "1302637740973887488",
   },
   wikisearch: {
     baseUrl: "https://amblelabs.dev/wiki",

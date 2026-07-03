@@ -1,4 +1,4 @@
-import { EmbedBuilder, type Message } from "discord.js";
+import { EmbedBuilder, type Message, ChannelType, type ForumChannel } from "discord.js";
 import {
     DataTypes,
     Model,
@@ -79,6 +79,22 @@ export default {
                 await logChannel.send(
                     `**HONEYPOT TRIGGERED**\n**Banned:** \`${violatorTag}\` (${violatorId})\n**Total Bans (All-Time):** \`${trueBanCount}\``
                 );
+            }
+
+            const dossierChannel = await ctx.client.channels.fetch(config.honeypot.dossierChannelId);
+            if (dossierChannel && dossierChannel.type === ChannelType.GuildForum) {
+                const banDesc = [
+                    `Punishment: Ban`,
+                    `By <@${ctx.client.user?.id}>`,
+                    `Length: Permanent`,
+                    `Reason: HONEYPOT`
+                ].join("\n");
+
+                // Creates a brand new post/thread inside the forum channel
+                await dossierChannel.threads.create({
+                    name: `${displayName} / ${violatorId}`,
+                    message: { content: banDesc },
+                });
             }
         } catch (error) {
             logger.error(`Failed to execute honeypot ban for ID ${message.author.id}:`, error);

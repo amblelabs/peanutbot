@@ -240,49 +240,54 @@ export default {
         const sub = interaction.options.getSubcommand();
 
         // Handle the entire Gamble Group
-        if (group === "gamble") {
-            // Guard: Check if the current channel is in our allowed list
-            if (!config.economy.gambleChannel.includes(interaction.channelId)) {
-                const allowedList = config.economy.gambleChannel.map(id => `<#${id}>`).join(", ");
+        switch (group) {
 
-                return interaction.reply({
-                    content: `❌ The casino is closed here! Gambling commands can only be used in: ${allowedList}`,
-                    ephemeral: true
-                });
-            }
+            case "gamble":
+                // Guard: Check if the current channel is in our allowed list
+                if (!config.economy.gambleChannel.includes(interaction.channelId)) {
+                    const allowedList = config.economy.gambleChannel.map((id: string) => `<#${id}>`).join(", ");
 
-            // 👇 Switch statement for the casino games
-            switch (sub) {
-                case "coinflip":
-                    return await handleGambleCoinflip(interaction);
-                case "dice":
-                    return await handleGambleDice(interaction);
-                case "roulette":
-                    return await handleGambleRoulette(interaction);
-            }
-            return; // Exit here so it doesn't try to run the main commands switch below
-        }
+                    return interaction.reply({
+                        content: `❌ Gambling commands can only be used in ${allowedList}`,
+                        ephemeral: true
+                    });
+                }
 
-        // 👇 Switch statement for all other base economy commands
-        switch (sub) {
-            case "leaderboard": // 👇 Add this line
-                return await handleLeaderboard(interaction);
-            case "balance":
-                return await handleBalance(interaction);
-            case "shop":
-                return await handleShop(interaction);
-            case "buy":
-                return await handleBuy(interaction);
-            case "inventory":
-                return await handleInventory(interaction);
-            case "add-money":
-                return await handleAddMoney(interaction);
-            case "set-balance":
-                return await handleSetBalance(interaction);
-            case "add-item":
-                return await handleAddShopItem(interaction);
-            case "remove-item":
-                return await handleRemoveShopItem(interaction);
+                // Inner switch for the casino games
+                switch (sub) {
+                    case "coinflip":
+                        return await handleGambleCoinflip(interaction);
+                    case "dice":
+                        return await handleGambleDice(interaction);
+                    case "roulette":
+                        return await handleGambleRoulette(interaction);
+                }
+                return; // Exits the gamble case
+
+            case null:
+            default:
+                // 👇 Inner switch for all base economy commands (where group is null)
+                switch (sub) {
+                    case "leaderboard":
+                        return await handleLeaderboard(interaction);
+                    case "balance":
+                        return await handleBalance(interaction);
+                    case "shop":
+                        return await handleShop(interaction);
+                    case "buy":
+                        return await handleBuy(interaction);
+                    case "inventory":
+                        return await handleInventory(interaction);
+                    case "add-money":
+                        return await handleAddMoney(interaction);
+                    case "set-balance":
+                        return await handleSetBalance(interaction);
+                    case "add-item":
+                        return await handleAddShopItem(interaction);
+                    case "remove-item":
+                        return await handleRemoveShopItem(interaction);
+                }
+                return;
         }
     },
 } as Cmd;

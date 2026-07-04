@@ -171,7 +171,8 @@ Consider donating to one of the following people:
         stock: -1
       }
     ],
-    teamRole: "1262624821582364703"
+    teamRole: "1262624821582364703",
+    gambleChannel: ["1522846518829125642"]
   },
   wikisearch: {
     baseUrl: "https://amblelabs.dev/wiki",

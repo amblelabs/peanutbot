@@ -207,7 +207,16 @@ export default {
         const sub = interaction.options.getSubcommand();
 
         if (group === "gamble") {
-            // Route gambling games
+            if (!config.economy.gambleChannel.includes(interaction.channelId)) {
+                // Map the IDs into clickable channel links (e.g., #casino)
+                const allowedList = config.economy.gambleChannel.map(id => `<#${id}>`).join(", ");
+
+                return interaction.reply({
+                    content: `❌ The casino is closed here! Gambling commands can only be used in: ${allowedList}`,
+                    ephemeral: true
+                });
+            }
+
             if (sub === "coinflip") await handleGambleCoinflip(interaction);
             else if (sub === "dice") await handleGambleDice(interaction);
             else if (sub === "roulette") await handleGambleRoulette(interaction);

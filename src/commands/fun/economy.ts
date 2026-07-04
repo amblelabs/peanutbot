@@ -8,7 +8,7 @@ import {
     ButtonStyle,
     ButtonBuilder,
     ActionRowBuilder,
-    MessageFlags // Required for modern ephemeral responses
+    MessageFlags
 } from "discord.js";
 import {
     DataTypes,
@@ -31,6 +31,7 @@ export class EconomyProfile extends Model<
     declare guildId: string;
     declare userId: string;
     declare balance: CreationOptional<number>;
+    declare lastWageClaim: CreationOptional<Date | null>;
     declare createdAt: CreationOptional<Date>;
     declare updatedAt: CreationOptional<Date>;
 }
@@ -72,6 +73,8 @@ export class TempRole extends Model<InferAttributes<TempRole>, InferCreationAttr
     declare expiresAt: Date;
 }
 const STARTING_BALANCE = 10;
+const WAGE_AMOUNT = 50;
+const WAGE_COOLDOWN_HOURS = 24;
 
 export default {
     data: { name: "economy" },
@@ -82,6 +85,7 @@ export default {
                 guildId: { type: DataTypes.STRING, primaryKey: true },
                 userId: { type: DataTypes.STRING, primaryKey: true },
                 balance: { type: DataTypes.INTEGER, defaultValue: STARTING_BALANCE },
+                lastWageClaim: { type: DataTypes.DATE, allowNull: true },
                 createdAt: DataTypes.DATE,
                 updatedAt: DataTypes.DATE,
             },
@@ -149,6 +153,7 @@ export default {
                     .setDescription("Check your current balance or another user's balance")
                     .addUserOption((opt) => opt.setName("user").setDescription("The user to check").setRequired(false)),
             )
+            .addSubcommand(sub => sub.setName("wage").setDescription("Collect your regular salary!"))
             .addSubcommand(sub => sub.setName("leaderboard").setDescription("View the leaderboard"))
             .addSubcommand((sub) => sub.setName("shop").setDescription("View available items for purchase"))
             .addSubcommand((sub) =>
@@ -189,6 +194,12 @@ export default {
                     .setDescription("Remove an item from the server shop (Staff Only)")
                     .addStringOption((opt) => opt.setName("id").setDescription("The ID of the item to delete").setRequired(true))
             )
+            .addSubcommand((sub) =>
+                sub
+                    .setName("inflation")
+                    .setDescription("Increase all shop prices by a percentage to combat wealth (Staff Only)")
+                    .addNumberOption((opt) => opt.setName("percentage").setDescription("Percentage to increase (e.g. 10 for 10%)").setRequired(true))
+            )
             .addSubcommandGroup((group) =>
                 group
                     .setName("gamble")
@@ -227,11 +238,9 @@ export default {
         const sub = interaction.options.getSubcommand(false);
         const group = interaction.options.getSubcommandGroup(false);
 
-        // 1. Identify which commands should be public in the chat
         const publicCommands = ["coinflip", "dice", "roulette", "shop"];
         const isPublic = sub && publicCommands.includes(sub);
 
-        // 2. Instantly defer at the highest level! (Using strict MessageFlags to fix the deprecation warning)
         try {
             if (!isPublic) {
                 await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -239,13 +248,10 @@ export default {
                 await interaction.deferReply();
             }
         } catch (error) {
-            // CRITICAL FIX: If defer fails (due to 3s timeout), STOP RUNNING!
-            // This guarantees the bot will not crash on an editReply later.
             console.error("[Economy] Interaction token expired upstream. Safely aborting command.");
             return;
         }
 
-        // Proceed to the handlers only if deferral was completely successful
         switch (group) {
             case "gamble": {
                 const hasBypassRole = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
@@ -269,6 +275,8 @@ export default {
             case null:
             default: {
                 switch (sub) {
+                    case "wage": return await handleWage(interaction);
+                    case "inflation": return await handleInflation(interaction);
                     case "leaderboard": return await handleLeaderboard(interaction);
                     case "balance": return await handleBalance(interaction);
                     case "shop": return await handleShop(interaction);
@@ -286,11 +294,68 @@ export default {
 } as Cmd;
 
 // ── SUBCOMMAND HANDLERS ──────────────────────────────────────────────────
-// Note: NONE of these contain `deferReply` anymore. That is handled 100% globally now.
+
+async function handleWage(interaction: ChatInputCommandInteraction) {
+    let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: interaction.user.id } });
+    const now = new Date();
+
+    if (profile && profile.lastWageClaim) {
+        const diffMs = now.getTime() - profile.lastWageClaim.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        if (diffHours < WAGE_COOLDOWN_HOURS) {
+            const remainingHours = Math.ceil(WAGE_COOLDOWN_HOURS - diffHours);
+            return void await interaction.editReply({
+                content: `⏳ You have already collected your wage recently! Come back in **${remainingHours} hours**.`
+            });
+        }
+    }
+
+    if (!profile) {
+        profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: interaction.user.id, balance: STARTING_BALANCE });
+    }
+
+    profile.balance += WAGE_AMOUNT;
+    profile.lastWageClaim = now;
+    await profile.save();
+
+    await interaction.editReply({
+        content: `💵 You clocked in and collected your wage of **$${WAGE_AMOUNT}**! Your new balance is **$${profile.balance}**.`
+    });
+}
+
+async function handleInflation(interaction: ChatInputCommandInteraction) {
+    const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) => interaction.member.roles.cache.has(roleId));
+    if (!isStaff) return void await interaction.editReply({ content: "❌ You do not have a required staff role to use this command." });
+
+    const percentage = interaction.options.getNumber("percentage", true);
+
+    if (percentage <= 0) {
+        return void await interaction.editReply({ content: "❌ Please provide a percentage greater than 0." });
+    }
+
+    const items = await ShopItem.findAll({ where: { guildId: interaction.guildId! } });
+
+    if (items.length === 0) {
+        return void await interaction.editReply({ content: "❌ There are no items in the shop to inflate." });
+    }
+
+    const multiplier = 1 + (percentage / 100);
+
+    for (const item of items) {
+        item.price = Math.round(item.price * multiplier);
+        await item.save();
+    }
+
+    await interaction.editReply({
+        content: `📈 **Inflation Applied!** All shop items have been increased in price by **${percentage}%**.`
+    });
+}
 
 async function handleBalance(interaction: ChatInputCommandInteraction) {
     const targetUser = interaction.options.getUser("user") || interaction.user;
 
+    // Fast, lightweight query. No rows created!
     const balance = (await EconomyProfile.findOne({
         where: { guildId: interaction.guildId!, userId: targetUser.id }
     }))?.balance ?? STARTING_BALANCE;
@@ -330,13 +395,16 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
     if (!item) return void await interaction.editReply({ content: "That item doesn't exist in our shop." });
     if (item.stock === 0) return void await interaction.editReply({ content: `❌ Sorry, **${item.name}** is completely sold out!` });
 
-    const [profile] = await EconomyProfile.findOrCreate({
-        where: { guildId: interaction.guildId!, userId: interaction.user.id },
-        defaults: { guildId: interaction.guildId!, userId: interaction.user.id, balance: 100 }
-    });
+    let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: interaction.user.id } });
+    const currentBalance = profile?.balance ?? STARTING_BALANCE;
 
-    if (profile.balance < item.price) {
-        return void await interaction.editReply({ content: `❌ You can't afford that! **${item.name}** costs \`$${item.price}\`, but you only have \`$${profile.balance}\`.` });
+    if (currentBalance < item.price) {
+        return void await interaction.editReply({ content: `❌ You can't afford that! **${item.name}** costs \`$${item.price}\`, but you only have \`$${currentBalance}\`.` });
+    }
+
+    // Now that they passed the check, securely create the profile if it doesn't exist
+    if (!profile) {
+        profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: interaction.user.id, balance: STARTING_BALANCE });
     }
 
     let roleGrantedMessage = "";
@@ -418,10 +486,8 @@ async function handleAddMoney(interaction: ChatInputCommandInteraction) {
 
     if (amount <= 0 || amount > 1000000) return void await interaction.editReply({ content: "❌ Please use an integer smaller than or equal to 1,000,000 and bigger than 0" });
 
-    const [profile] = await EconomyProfile.findOrCreate({
-        where: { guildId: interaction.guildId!, userId: targetUser.id },
-        defaults: { guildId: interaction.guildId!, userId: targetUser.id, balance: STARTING_BALANCE }
-    });
+    let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: targetUser.id } });
+    if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: targetUser.id, balance: STARTING_BALANCE });
 
     profile.balance += amount;
     await profile.save();
@@ -442,10 +508,8 @@ async function handleSetBalance(interaction: ChatInputCommandInteraction) {
 
     if (amount < 0 || amount > 2_000_000_000) return void await interaction.editReply({ content: "❌ Invalid amount range (0 to 2B)." });
 
-    const [profile] = await EconomyProfile.findOrCreate({
-        where: { guildId: interaction.guildId!, userId: targetUser.id },
-        defaults: { guildId: interaction.guildId!, userId: targetUser.id, balance: amount }
-    });
+    let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: targetUser.id } });
+    if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: targetUser.id, balance: STARTING_BALANCE });
 
     profile.balance = amount;
     await profile.save();
@@ -491,14 +555,14 @@ async function handleRemoveShopItem(interaction: ChatInputCommandInteraction) {
 
 async function handleGambleCoinflip(interaction: ChatInputCommandInteraction) {
     const betAmount = interaction.options.getInteger("amount", true);
-    const [profile] = await EconomyProfile.findOrCreate({
-        where: { guildId: interaction.guildId!, userId: interaction.user.id },
-        defaults: { guildId: interaction.guildId!, userId: interaction.user.id, balance: 100 }
-    });
+    let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: interaction.user.id } });
+    const currentBalance = profile?.balance ?? STARTING_BALANCE;
 
-    if (profile.balance < betAmount) {
-        return void await interaction.editReply({ content: `❌ You can't afford that! You only have \`$${profile.balance}\` to your name.` });
+    if (currentBalance < betAmount) {
+        return void await interaction.editReply({ content: `❌ You can't afford that! You only have \`$${currentBalance}\` to your name.` });
     }
+
+    if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: interaction.user.id, balance: STARTING_BALANCE });
 
     const isWinner = randomUtils.pickRandom([true, false]);
 
@@ -517,14 +581,14 @@ async function handleGambleDice(interaction: ChatInputCommandInteraction) {
     const betAmount = interaction.options.getInteger("amount", true);
     const guess = interaction.options.getInteger("guess", true);
 
-    const [profile] = await EconomyProfile.findOrCreate({
-        where: { guildId: interaction.guildId!, userId: interaction.user.id },
-        defaults: { guildId: interaction.guildId!, userId: interaction.user.id, balance: 100 }
-    });
+    let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: interaction.user.id } });
+    const currentBalance = profile?.balance ?? STARTING_BALANCE;
 
-    if (profile.balance < betAmount) {
-        return void await interaction.editReply({ content: `❌ You only have \`$${profile.balance}\`. You can't bet what you don't own!` });
+    if (currentBalance < betAmount) {
+        return void await interaction.editReply({ content: `❌ You only have \`$${currentBalance}\`. You can't bet what you don't own!` });
     }
+
+    if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: interaction.user.id, balance: STARTING_BALANCE });
 
     const diceRoll = randomUtils.getRandomIntInclusive(1, 6);
 
@@ -595,12 +659,12 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
             const amount = parseInt(amountStr, 10);
             if (isNaN(amount) || amount <= 0) return void await message.react("❌");
 
-            const [profile] = await EconomyProfile.findOrCreate({
-                where: { guildId: interaction.guildId!, userId: message.author.id },
-                defaults: { guildId: interaction.guildId!, userId: message.author.id, balance: STARTING_BALANCE }
-            });
+            let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: message.author.id } });
+            const currentBalance = profile?.balance ?? STARTING_BALANCE;
 
-            if (profile.balance < amount) return void await message.react("❌");
+            if (currentBalance < amount) return void await message.react("❌");
+
+            if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: message.author.id, balance: STARTING_BALANCE });
 
             profile.balance -= amount;
             await profile.save();

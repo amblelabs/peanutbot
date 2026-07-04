@@ -2,8 +2,6 @@ import {
     EmbedBuilder,
     ChatInputCommandInteraction,
     GuildMember,
-    Message,
-    type TextChannel,
     ComponentType,
     ButtonStyle, ButtonBuilder, ActionRowBuilder
 } from "discord.js";
@@ -68,7 +66,8 @@ export class TempRole extends Model<InferAttributes<TempRole>, InferCreationAttr
     declare roleId: string;
     declare expiresAt: Date;
 }
-const STARTING_BALANCE = 10
+const STARTING_BALANCE = 10;
+
 export default {
     data: { name: "economy" },
 
@@ -201,7 +200,6 @@ export default {
                     .addRoleOption((opt) => opt.setName("role").setDescription("Optional: A role to give upon purchase").setRequired(false))
                     .addIntegerOption((opt) => opt.setName("stock").setDescription("Amount available (leave blank for infinite stock)").setRequired(false))
             )
-            // 👇 Admin Command: Remove Shop Item
             .addSubcommand((sub) =>
                 sub
                     .setName("remove-item")
@@ -233,30 +231,26 @@ export default {
                                 option.setName("seconds")
                                     .setDescription("How many seconds should the table stay open? (Default: 60)")
                                     .setRequired(false)
-                                    .setMinValue(15)   // Give people at least 15 seconds to bet!
-                                    .setMaxValue(1800) // Max 30 minutes (1800 seconds)
+                                    .setMinValue(15)
+                                    .setMaxValue(1800)
                             )
                     )
             );
-
     },
 
     onInteraction: async (ctx, interaction) => {
         if (!interaction.isChatInputCommand()) return;
-        await interaction.deferReply();
         const group = interaction.options.getSubcommandGroup(false);
         const sub = interaction.options.getSubcommand();
 
         // Handle the entire Gamble Group
         switch (group) {
-
             case "gamble":
                 const hasBypassRole = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
                     interaction.member.roles.cache.has(roleId)
                 );
                 const isExplicitAdmin = interaction.inCachedGuild() && interaction.member.permissions.has("Administrator");
 
-                // ⛔ Guard: Block them only if they lack a bypass role AND aren't an Admin AND are in the wrong channel
                 if (!hasBypassRole && !isExplicitAdmin && !config.economy.gambleChannel.includes(interaction.channelId)) {
                     const allowedList = config.economy.gambleChannel.map((id: string) => `<#${id}>`).join(", ");
 
@@ -266,7 +260,6 @@ export default {
                     });
                 }
 
-                // Inner switch for the casino games
                 switch (sub) {
                     case "coinflip":
                         return await handleGambleCoinflip(interaction);
@@ -275,11 +268,10 @@ export default {
                     case "roulette":
                         return await handleGambleRoulette(interaction);
                 }
-                return; // Exits the gamble case
+                return;
 
             case null:
             default:
-                // 👇 Inner switch for all base economy commands (where group is null)
                 switch (sub) {
                     case "leaderboard":
                         return await handleLeaderboard(interaction);
@@ -308,11 +300,8 @@ export default {
 // ── SUBCOMMAND HANDLERS ──────────────────────────────────────────────────
 
 async function handleBalance(interaction: ChatInputCommandInteraction) {
-    // 1. Check if they pinged a specific user to look at, otherwise default to themselves
     const targetUser = interaction.options.getUser("user") || interaction.user;
 
-    // 👇 2. Put the line right here!
-    // We look up the targetUser's ID in this specific server.
     const balance = (await EconomyProfile.findOne({
         where: {
             guildId: interaction.guildId!,
@@ -320,13 +309,11 @@ async function handleBalance(interaction: ChatInputCommandInteraction) {
         }
     }))?.balance ?? STARTING_BALANCE;
 
-    // 3. Send the message back to the chat
     await interaction.reply({
         content: `💰 <@${targetUser.id}> currently has **$${balance}**.`,
         ephemeral: true
     });
 }
-
 
 async function handleShop(interaction: ChatInputCommandInteraction) {
     const items = await ShopItem.findAll({
@@ -342,7 +329,6 @@ async function handleShop(interaction: ChatInputCommandInteraction) {
         embed.setDescription("The shop is currently empty. Admins need to add items!");
     } else {
         for (const item of items) {
-            // 👇 Determine if it says "∞" or a specific number, or "OUT OF STOCK"
             let stockDisplay = item.stock === -1 ? "∞" : item.stock.toString();
             if (item.stock === 0) stockDisplay = "❌ OUT OF STOCK";
 
@@ -386,8 +372,6 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
 
     let roleGrantedMessage = "";
 
-    // ─── RESUME NORMAL INVENTORY & BALANCE SAVING ───────────────────────
-
     if (item.stock > 0) {
         item.stock -= 1;
         await item.save();
@@ -396,21 +380,17 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
     if (item.roleId) {
         if (interaction.member instanceof GuildMember) {
             try {
-                // If the item has a duration, track it!
                 if (item.durationDays) {
-                    const timeToAdd = item.durationDays * 24 * 60 * 60 * 1000; // Convert days to milliseconds
+                    const timeToAdd = item.durationDays * 24 * 60 * 60 * 1000;
 
-                    // Check if they already have an active subscription for this role
                     let tempRole = await TempRole.findOne({
                         where: { guildId: interaction.guildId!, userId: interaction.user.id, roleId: item.roleId }
                     });
 
                     if (tempRole) {
-                        // If they already have it, ADD the new days to their current expiration date (Stacking!)
                         tempRole.expiresAt = new Date(tempRole.expiresAt.getTime() + timeToAdd);
                         await tempRole.save();
                     } else {
-                        // Start a brand new subscription
                         await TempRole.create({
                             guildId: interaction.guildId!,
                             userId: interaction.user.id,
@@ -423,7 +403,6 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
                     roleGrantedMessage = ` and granted you the <@&${item.roleId}> role for **${item.durationDays} days**!`;
 
                 } else {
-                    // Permanent role logic
                     if (interaction.member.roles.cache.has(item.roleId)) {
                         return interaction.reply({ content: `❌ You already have this permanent role!`, ephemeral: true });
                     }
@@ -438,7 +417,6 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
     }
     await profile.save();
 
-    // Add item to inventory database
     const [invItem, created] = await Inventory.findOrCreate({
         where: { guildId: interaction.guildId!, userId: interaction.user.id, itemKey },
         defaults: { guildId: interaction.guildId!, userId: interaction.user.id, itemKey, quantity: 1 }
@@ -464,12 +442,10 @@ async function handleInventory(interaction: ChatInputCommandInteraction) {
         return;
     }
 
-    // 👇 Fetch all shop items from the DB to figure out their display names
     const allShopItems = await ShopItem.findAll({
         where: { guildId: interaction.guildId! }
     });
 
-    // 👇 Map database entries to their descriptive shop names dynamically
     const itemManifest = Object.fromEntries(allShopItems.map((i) => [i.itemId, i.name]));
 
     const inventoryList = items
@@ -488,7 +464,6 @@ async function handleInventory(interaction: ChatInputCommandInteraction) {
 }
 
 async function handleAddMoney(interaction: ChatInputCommandInteraction) {
-    // Check for the staff role
     const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
         interaction.member.roles.cache.has(roleId)
     );
@@ -503,7 +478,6 @@ async function handleAddMoney(interaction: ChatInputCommandInteraction) {
     const targetUser = interaction.options.getUser("user", true);
     const amount = interaction.options.getInteger("amount", true);
 
-    // Prevent staff from entering negative and/or too big numbers
     if (amount <= 0 || amount > 1000000) {
         return interaction.reply({
             content: "❌ Please use an integer smaller than or equal to 1,000,000 and bigger than 0",
@@ -511,33 +485,29 @@ async function handleAddMoney(interaction: ChatInputCommandInteraction) {
         });
     }
 
-    // Fetch their profile, or create it if they've never interacted with the economy system
     const [profile] = await EconomyProfile.findOrCreate({
         where: { guildId: interaction.guildId!, userId: targetUser.id },
         defaults: { guildId: interaction.guildId!, userId: targetUser.id, balance: 100 }
     });
 
-    // Credit the money and save back to the database
     profile.balance += amount;
     await profile.save();
 
-    // 1. Format the money amounts (Outputs: "100$")
     const formattedAmount = format(config.economy.currencyFormat, amount);
     const formattedBalance = format(config.economy.currencyFormat, profile.balance);
 
-    // 2. Inject those strings and the username into your config message
     const replyMessage = format(
-        config.economy.addMoney, // 👈 Fixed this path to match your config structure!
-        formattedAmount,       // Becomes {0}
-        targetUser.username,   // Becomes {1}
+        config.economy.addMoney,
+        formattedAmount,
+        targetUser.username,
         formattedBalance,
         config.economy.coinEmoji
     );
 
     await interaction.reply(replyMessage);
 }
+
 async function handleSetBalance(interaction: ChatInputCommandInteraction) {
-    // Your exact staff role protection check
     const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
         interaction.member.roles.cache.has(roleId)
     );
@@ -556,7 +526,6 @@ async function handleSetBalance(interaction: ChatInputCommandInteraction) {
         return interaction.reply({ content: "❌ Invalid amount range (0 to 2B).", ephemeral: true });
     }
 
-    // Update or insert into the database
     const [profile] = await EconomyProfile.findOrCreate({
         where: { guildId: interaction.guildId!, userId: targetUser.id },
         defaults: { guildId: interaction.guildId!, userId: targetUser.id, balance: amount }
@@ -569,6 +538,7 @@ async function handleSetBalance(interaction: ChatInputCommandInteraction) {
         content: `⚙️ **Database Updated:** ${targetUser.username}'s balance has been explicitly set to \`$${amount}\`.`,
     });
 }
+
 async function handleAddShopItem(interaction: ChatInputCommandInteraction) {
     const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
         interaction.member.roles.cache.has(roleId)
@@ -586,7 +556,7 @@ async function handleAddShopItem(interaction: ChatInputCommandInteraction) {
     const price = interaction.options.getInteger("price", true);
     const description = interaction.options.getString("description", true);
     const role = interaction.options.getRole("role", false);
-    const stock = interaction.options.getInteger("stock") ?? -1; // 👇 Grab the stock, default to -1
+    const stock = interaction.options.getInteger("stock") ?? -1;
 
     if (price < 0) return interaction.reply({ content: "❌ Price cannot be negative.", ephemeral: true });
 
@@ -599,7 +569,7 @@ async function handleAddShopItem(interaction: ChatInputCommandInteraction) {
             price: price,
             description: description,
             roleId: role?.id || null,
-            stock: stock // 👇 Save the stock to the DB
+            stock: stock
         }
     });
 
@@ -612,7 +582,6 @@ async function handleAddShopItem(interaction: ChatInputCommandInteraction) {
 }
 
 async function handleRemoveShopItem(interaction: ChatInputCommandInteraction) {
-    // Staff Check
     const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
         interaction.member.roles.cache.has(roleId)
     );
@@ -652,7 +621,6 @@ async function handleGambleCoinflip(interaction: ChatInputCommandInteraction) {
         });
     }
 
-    // 👇 Use your pickRandom utility to pull a random boolean from an array
     const isWinner = randomUtils.pickRandom([true, false]);
 
     if (isWinner) {
@@ -686,7 +654,6 @@ async function handleGambleDice(interaction: ChatInputCommandInteraction) {
         });
     }
 
-    // 👇 Use your getRandomIntInclusive utility for a perfect 1-6 roll
     const diceRoll = randomUtils.getRandomIntInclusive(1, 6);
 
     if (guess === diceRoll) {
@@ -713,13 +680,12 @@ interface RouletteBet {
 }
 
 async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
-    // ❌ REMOVED interaction.deferReply() from here since it's now handled at the entry point
+    // ⏱️ Defer here directly since roulette takes time to process threads and is a public game
+    await interaction.deferReply();
 
-    // ⏱️ Get the custom time in seconds, or default to 60 seconds
     const customSeconds = interaction.options.getInteger("seconds") || 60;
     const timeMs = customSeconds * 1000;
 
-    // 🎰 Edit the existing deferred reply safely
     const initialReply = await interaction.editReply({
         content: `🎰 **${interaction.user.username}** opened a Roulette Table for **${customSeconds} seconds**! Join the thread below to place your bets.`
     });
@@ -732,7 +698,6 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
 
     const bets: RouletteBet[] = [];
 
-    // Mention the time limit in seconds
     await thread.send(
         `🎡 **Roulette Table Opened!** (Closes in ${customSeconds} seconds)\n\n` +
         `To enter, type your bet choice followed by your amount. **Example: \`red 250\`**\n` +
@@ -744,7 +709,6 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
         `👑 **<@${interaction.user.id}>**, type \`spin\` when everyone is ready!`
     );
 
-    // ⏱️ Plug the dynamic millisecond timer into the collector
     const collector = thread.createMessageCollector({
         filter: (m) => !m.author.bot,
         time: timeMs
@@ -887,10 +851,7 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
 async function seedDefaultShopItems(guildId: string) {
     for (const item of config.economy.shopItems) {
         await ShopItem.findOrCreate({
-            // It searches the DB to see if this specific guild already has an item with this name
             where: {guildId: guildId, name: item.name},
-
-            // If it doesn't exist, it creates it using the data from config.json
             defaults: {
                 guildId: guildId,
                 itemId: item.itemId,
@@ -898,7 +859,7 @@ async function seedDefaultShopItems(guildId: string) {
                 price: item.price,
                 description: item.description,
                 roleId: item.roleId || null,
-                durationDays: item.durationDays || null, // 👇 Add this
+                durationDays: item.durationDays || null,
                 stock: item.stock
             }
         });
@@ -906,12 +867,12 @@ async function seedDefaultShopItems(guildId: string) {
 }
 
 async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
+    // ⏱️ Defer explicitly here as ephemeral since leaderboard is highly customized
     await interaction.deferReply({ ephemeral: true });
 
     const PAGE_SIZE = 10;
     let currentPage = 1;
 
-    // 👇 1. Get the total number of players to calculate max pages
     const actualCount = await EconomyProfile.count({ where: { guildId: interaction.guildId! } });
     const totalProfiles = Math.min(actualCount, 100);
     if (totalProfiles === 0) {
@@ -919,7 +880,6 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
     }
     const maxPage = Math.ceil(totalProfiles / PAGE_SIZE);
 
-    // 👇 2. Helper function to fetch and format a specific page
     const generatePage = async (page: number) => {
         const offset = (page - 1) * PAGE_SIZE;
 
@@ -934,9 +894,8 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
             limit: PAGE_SIZE,
             offset: offset
         });
-        // Instead of waiting for User 1, then User 2, we use Promise.all to fetch all 20 concurrently.
+
         const descriptionLines = topProfiles.map((profile) => {
-            // Extract the rank that the database calculated for us
             const rank = profile.get('rank') as number;
             const userMention = `<@${profile.userId}>`;
 
@@ -957,7 +916,6 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
             .setFooter({ text: `Page ${page} of ${maxPage} | Total Players: ${totalProfiles}` });
     };
 
-    // 👇 3. Helper function to generate the Prev/Next buttons
     const generateButtons = (page: number) => {
         const row = new ActionRowBuilder<ButtonBuilder>();
         row.addComponents(
@@ -965,20 +923,17 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
                 .setCustomId('prev_page')
                 .setLabel('◀ Previous')
                 .setStyle(ButtonStyle.Primary)
-                .setDisabled(page === 1), // Disabled on page 1
+                .setDisabled(page === 1),
             new ButtonBuilder()
                 .setCustomId('next_page')
                 .setLabel('Next ▶')
                 .setStyle(ButtonStyle.Primary)
-                .setDisabled(page === maxPage) // Disabled on the last page
+                .setDisabled(page === maxPage)
         );
         return row;
     };
 
-    // 👇 4. Send the first page
     const initialEmbed = await generatePage(currentPage);
-
-    // Only show buttons if there is more than 1 page
     const components = maxPage > 1 ? [generateButtons(currentPage)] : [];
 
     const message = await interaction.editReply({
@@ -986,16 +941,14 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
         components: components
     });
 
-    if (maxPage <= 1) return; // Exit early if no pagination is needed
+    if (maxPage <= 1) return;
 
-    // 👇 5. Create the Button Collector
     const collector = message.createMessageComponentCollector({
         componentType: ComponentType.Button,
-        time: 60000 // Buttons stay active for 60 seconds
+        time: 60000
     });
 
     collector.on("collect", async (i) => {
-        // Security check: Only the person who ran the command can click the buttons
         await i.deferUpdate();
         if (i.customId === 'prev_page') currentPage--;
         if (i.customId === 'next_page') currentPage++;
@@ -1003,7 +956,6 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
         const newEmbed = await generatePage(currentPage);
         const newButtons = generateButtons(currentPage);
 
-        // Instantly update the message with the new page
         await i.editReply({
             embeds: [newEmbed],
             components: [newButtons]
@@ -1011,7 +963,6 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
     });
 
     collector.on("end", async () => {
-        // When the 60 seconds are up, disable the buttons so they don't sit there active forever
         const disabledRow = generateButtons(currentPage);
         disabledRow.components.forEach(c => c.setDisabled(true));
 

@@ -2,8 +2,13 @@ import {
     EmbedBuilder,
     ChatInputCommandInteraction,
     GuildMember,
+    Message,
+    type TextChannel,
     ComponentType,
-    ButtonStyle, ButtonBuilder, ActionRowBuilder
+    ButtonStyle,
+    ButtonBuilder,
+    ActionRowBuilder,
+    MessageFlags // Required for modern ephemeral responses
 } from "discord.js";
 import {
     DataTypes,
@@ -72,7 +77,6 @@ export default {
     data: { name: "economy" },
 
     setup: async (ctx) => {
-        // Initialize Economy Profiles (Composite Primary Key of Guild + User)
         EconomyProfile.init(
             {
                 guildId: { type: DataTypes.STRING, primaryKey: true },
@@ -84,7 +88,6 @@ export default {
             { sequelize: ctx.sql },
         );
 
-        // Initialize Inventory Tracking
         Inventory.init(
             {
                 id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
@@ -101,7 +104,7 @@ export default {
         ShopItem.init(
             {
                 guildId: { type: DataTypes.STRING, primaryKey: true },
-                itemId: { type: DataTypes.STRING, primaryKey: true }, // The ID users type to buy
+                itemId: { type: DataTypes.STRING, primaryKey: true },
                 name: { type: DataTypes.STRING, allowNull: false },
                 description: { type: DataTypes.STRING, allowNull: false },
                 price: { type: DataTypes.INTEGER, allowNull: false },
@@ -124,16 +127,14 @@ export default {
             },
             { sequelize: ctx.sql }
         );
-        // Establish relationships
+
         EconomyProfile.hasMany(Inventory, { foreignKey: "userId", sourceKey: "userId", onDelete: "CASCADE" });
         Inventory.belongsTo(EconomyProfile, { foreignKey: "userId", targetKey: "userId" });
 
         await ctx.sql.sync();
 
         const guilds = ctx.client.guilds.cache;
-
         for (const [guildId, guild] of guilds) {
-            // 3. Seed the default items for each server!
             await seedDefaultShopItems(guildId);
         }
     },
@@ -146,41 +147,23 @@ export default {
                 sub
                     .setName("balance")
                     .setDescription("Check your current balance or another user's balance")
-                    .addUserOption((opt) =>
-                        opt.setName("user").setDescription("The user to check").setRequired(false),
-                    ),
+                    .addUserOption((opt) => opt.setName("user").setDescription("The user to check").setRequired(false)),
             )
-            .addSubcommand(sub => sub
-                .setName("leaderboard")
-                .setDescription("View the leaderboard")
-            )
-            .addSubcommand((sub) =>
-                sub.setName("shop").setDescription("View available items for purchase"),
-            )
+            .addSubcommand(sub => sub.setName("leaderboard").setDescription("View the leaderboard"))
+            .addSubcommand((sub) => sub.setName("shop").setDescription("View available items for purchase"))
             .addSubcommand((sub) =>
                 sub
                     .setName("buy")
                     .setDescription("Purchase an item from the shop")
-                    .addStringOption((opt) =>
-                        opt
-                            .setName("item")
-                            .setDescription("The ID of the item you want to buy (e.g. 'vip_role')")
-                            .setRequired(true)
-                    )
+                    .addStringOption((opt) => opt.setName("item").setDescription("The ID of the item you want to buy (e.g. 'vip_role')").setRequired(true))
             )
-            .addSubcommand((sub) =>
-                sub.setName("inventory").setDescription("View items you currently own"),
-            )
+            .addSubcommand((sub) => sub.setName("inventory").setDescription("View items you currently own"))
             .addSubcommand((sub) =>
                 sub
                     .setName("add-money")
                     .setDescription("Add money to a user's balance (Admin/Staff Only)")
-                    .addUserOption((opt) =>
-                        opt.setName("user").setDescription("The user receiving the money").setRequired(true),
-                    )
-                    .addIntegerOption((opt) =>
-                        opt.setName("amount").setDescription("The amount of money to add").setRequired(true),
-                    ),
+                    .addUserOption((opt) => opt.setName("user").setDescription("The user receiving the money").setRequired(true))
+                    .addIntegerOption((opt) => opt.setName("amount").setDescription("The amount of money to add").setRequired(true)),
             )
             .addSubcommand((sub) =>
                 sub
@@ -240,12 +223,31 @@ export default {
 
     onInteraction: async (ctx, interaction) => {
         if (!interaction.isChatInputCommand()) return;
-        const group = interaction.options.getSubcommandGroup(false);
-        const sub = interaction.options.getSubcommand();
 
-        // Handle the entire Gamble Group
+        const sub = interaction.options.getSubcommand(false);
+        const group = interaction.options.getSubcommandGroup(false);
+
+        // 1. Identify which commands should be public in the chat
+        const publicCommands = ["coinflip", "dice", "roulette", "shop"];
+        const isPublic = sub && publicCommands.includes(sub);
+
+        // 2. Instantly defer at the highest level! (Using strict MessageFlags to fix the deprecation warning)
+        try {
+            if (!isPublic) {
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+            } else {
+                await interaction.deferReply();
+            }
+        } catch (error) {
+            // CRITICAL FIX: If defer fails (due to 3s timeout), STOP RUNNING!
+            // This guarantees the bot will not crash on an editReply later.
+            console.error("[Economy] Interaction token expired upstream. Safely aborting command.");
+            return;
+        }
+
+        // Proceed to the handlers only if deferral was completely successful
         switch (group) {
-            case "gamble":
+            case "gamble": {
                 const hasBypassRole = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
                     interaction.member.roles.cache.has(roleId)
                 );
@@ -253,73 +255,51 @@ export default {
 
                 if (!hasBypassRole && !isExplicitAdmin && !config.economy.gambleChannel.includes(interaction.channelId)) {
                     const allowedList = config.economy.gambleChannel.map((id: string) => `<#${id}>`).join(", ");
-
-                    return interaction.reply({
-                        content: `❌ Gambling commands can only be used in ${allowedList}`,
-                        ephemeral: true
-                    });
+                    return void await interaction.editReply({ content: `❌ Gambling commands can only be used in ${allowedList}` });
                 }
 
                 switch (sub) {
-                    case "coinflip":
-                        return await handleGambleCoinflip(interaction);
-                    case "dice":
-                        return await handleGambleDice(interaction);
-                    case "roulette":
-                        return await handleGambleRoulette(interaction);
+                    case "coinflip": return await handleGambleCoinflip(interaction);
+                    case "dice": return await handleGambleDice(interaction);
+                    case "roulette": return await handleGambleRoulette(interaction);
                 }
                 return;
+            }
 
             case null:
-            default:
+            default: {
                 switch (sub) {
-                    case "leaderboard":
-                        return await handleLeaderboard(interaction);
-                    case "balance":
-                        return await handleBalance(interaction);
-                    case "shop":
-                        return await handleShop(interaction);
-                    case "buy":
-                        return await handleBuy(interaction);
-                    case "inventory":
-                        return await handleInventory(interaction);
-                    case "add-money":
-                        return await handleAddMoney(interaction);
-                    case "set-balance":
-                        return await handleSetBalance(interaction);
-                    case "add-item":
-                        return await handleAddShopItem(interaction);
-                    case "remove-item":
-                        return await handleRemoveShopItem(interaction);
+                    case "leaderboard": return await handleLeaderboard(interaction);
+                    case "balance": return await handleBalance(interaction);
+                    case "shop": return await handleShop(interaction);
+                    case "buy": return await handleBuy(interaction);
+                    case "inventory": return await handleInventory(interaction);
+                    case "add-money": return await handleAddMoney(interaction);
+                    case "set-balance": return await handleSetBalance(interaction);
+                    case "add-item": return await handleAddShopItem(interaction);
+                    case "remove-item": return await handleRemoveShopItem(interaction);
                 }
                 return;
+            }
         }
     },
 } as Cmd;
 
 // ── SUBCOMMAND HANDLERS ──────────────────────────────────────────────────
+// Note: NONE of these contain `deferReply` anymore. That is handled 100% globally now.
 
 async function handleBalance(interaction: ChatInputCommandInteraction) {
     const targetUser = interaction.options.getUser("user") || interaction.user;
 
     const balance = (await EconomyProfile.findOne({
-        where: {
-            guildId: interaction.guildId!,
-            userId: targetUser.id
-        }
+        where: { guildId: interaction.guildId!, userId: targetUser.id }
     }))?.balance ?? STARTING_BALANCE;
 
-    await interaction.reply({
-        content: `💰 <@${targetUser.id}> currently has **$${balance}**.`,
-        ephemeral: true
-    });
+    await interaction.editReply({ content: `💰 <@${targetUser.id}> currently has **$${balance}**.` });
 }
 
 async function handleShop(interaction: ChatInputCommandInteraction) {
-    const items = await ShopItem.findAll({
-        where: { guildId: interaction.guildId! }
-    });
-
+    const items = await ShopItem.findAll({ where: { guildId: interaction.guildId! } });
     const embed = new EmbedBuilder()
         .setTitle("🛒 The Server Marketplace")
         .setDescription("Use `/economy buy <item_id>` to purchase something!")
@@ -340,34 +320,23 @@ async function handleShop(interaction: ChatInputCommandInteraction) {
         }
     }
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed] });
 }
 
 async function handleBuy(interaction: ChatInputCommandInteraction) {
     const itemKey = interaction.options.getString("item", true).toLowerCase();
+    const item = await ShopItem.findOne({ where: { guildId: interaction.guildId!, itemId: itemKey } });
 
-    const item = await ShopItem.findOne({
-        where: { guildId: interaction.guildId!, itemId: itemKey }
-    });
+    if (!item) return void await interaction.editReply({ content: "That item doesn't exist in our shop." });
+    if (item.stock === 0) return void await interaction.editReply({ content: `❌ Sorry, **${item.name}** is completely sold out!` });
 
-    if (!item) {
-        return interaction.reply({ content: "That item doesn't exist in our shop.", ephemeral: true });
-    }
-
-    if (item.stock === 0) {
-        return interaction.reply({ content: `❌ Sorry, **${item.name}** is completely sold out!`, ephemeral: true });
-    }
     const [profile] = await EconomyProfile.findOrCreate({
         where: { guildId: interaction.guildId!, userId: interaction.user.id },
         defaults: { guildId: interaction.guildId!, userId: interaction.user.id, balance: 100 }
     });
 
     if (profile.balance < item.price) {
-        await interaction.reply({
-            content: `❌ You can't afford that! **${item.name}** costs \`$${item.price}\`, but you only have \`$${profile.balance}\`.`,
-            ephemeral: true,
-        });
-        return;
+        return void await interaction.editReply({ content: `❌ You can't afford that! **${item.name}** costs \`$${item.price}\`, but you only have \`$${profile.balance}\`.` });
     }
 
     let roleGrantedMessage = "";
@@ -377,44 +346,38 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
         await item.save();
     }
     profile.balance -= item.price;
-    if (item.roleId) {
-        if (interaction.member instanceof GuildMember) {
-            try {
-                if (item.durationDays) {
-                    const timeToAdd = item.durationDays * 24 * 60 * 60 * 1000;
 
-                    let tempRole = await TempRole.findOne({
-                        where: { guildId: interaction.guildId!, userId: interaction.user.id, roleId: item.roleId }
-                    });
+    if (item.roleId && interaction.member instanceof GuildMember) {
+        try {
+            if (item.durationDays) {
+                const timeToAdd = item.durationDays * 24 * 60 * 60 * 1000;
+                let tempRole = await TempRole.findOne({ where: { guildId: interaction.guildId!, userId: interaction.user.id, roleId: item.roleId } });
 
-                    if (tempRole) {
-                        tempRole.expiresAt = new Date(tempRole.expiresAt.getTime() + timeToAdd);
-                        await tempRole.save();
-                    } else {
-                        await TempRole.create({
-                            guildId: interaction.guildId!,
-                            userId: interaction.user.id,
-                            roleId: item.roleId,
-                            expiresAt: new Date(Date.now() + timeToAdd)
-                        });
-                    }
-
-                    await interaction.member.roles.add(item.roleId, `Purchased ${item.durationDays} day pass.`);
-                    roleGrantedMessage = ` and granted you the <@&${item.roleId}> role for **${item.durationDays} days**!`;
-
+                if (tempRole) {
+                    tempRole.expiresAt = new Date(tempRole.expiresAt.getTime() + timeToAdd);
+                    await tempRole.save();
                 } else {
-                    if (interaction.member.roles.cache.has(item.roleId)) {
-                        return interaction.reply({ content: `❌ You already have this permanent role!`, ephemeral: true });
-                    }
-                    await interaction.member.roles.add(item.roleId, `Purchased permanent role.`);
-                    roleGrantedMessage = ` and granted you the <@&${item.roleId}> role permanently!`;
+                    await TempRole.create({
+                        guildId: interaction.guildId!, userId: interaction.user.id,
+                        roleId: item.roleId, expiresAt: new Date(Date.now() + timeToAdd)
+                    });
                 }
-            } catch (error) {
-                console.error("Failed to assign shop role:", error);
-                return interaction.reply({ content: `❌ Internal Error: Please make sure my bot role is ABOVE the shop role in Server Settings.`, ephemeral: true });
+
+                await interaction.member.roles.add(item.roleId, `Purchased ${item.durationDays} day pass.`);
+                roleGrantedMessage = ` and granted you the <@&${item.roleId}> role for **${item.durationDays} days**!`;
+            } else {
+                if (interaction.member.roles.cache.has(item.roleId)) {
+                    return void await interaction.editReply({ content: `❌ You already have this permanent role!` });
+                }
+                await interaction.member.roles.add(item.roleId, `Purchased permanent role.`);
+                roleGrantedMessage = ` and granted you the <@&${item.roleId}> role permanently!`;
             }
+        } catch (error) {
+            console.error("Failed to assign shop role:", error);
+            return void await interaction.editReply({ content: `❌ Internal Error: Please make sure my bot role is ABOVE the shop role in Server Settings.` });
         }
     }
+
     await profile.save();
 
     const [invItem, created] = await Inventory.findOrCreate({
@@ -427,67 +390,37 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
         await invItem.save();
     }
 
-    await interaction.reply({
-        content: `🎉 Success! You bought **${item.name}** for \`$${item.price}\`${roleGrantedMessage}. Your remaining balance is \`$${profile.balance}\`.`,
-    });
+    await interaction.editReply({ content: `🎉 Success! You bought **${item.name}** for \`$${item.price}\`${roleGrantedMessage}. Your remaining balance is \`$${profile.balance}\`.` });
 }
 
 async function handleInventory(interaction: ChatInputCommandInteraction) {
-    const items = await Inventory.findAll({
-        where: { guildId: interaction.guildId!, userId: interaction.user.id }
-    });
+    const items = await Inventory.findAll({ where: { guildId: interaction.guildId!, userId: interaction.user.id } });
+    if (items.length === 0) return void await interaction.editReply({ content: "🎒 Your inventory is completely empty. Go buy something!" });
 
-    if (items.length === 0) {
-        await interaction.reply({ content: "🎒 Your inventory is completely empty. Go buy something!", ephemeral: true });
-        return;
-    }
-
-    const allShopItems = await ShopItem.findAll({
-        where: { guildId: interaction.guildId! }
-    });
-
+    const allShopItems = await ShopItem.findAll({ where: { guildId: interaction.guildId! } });
     const itemManifest = Object.fromEntries(allShopItems.map((i) => [i.itemId, i.name]));
 
-    const inventoryList = items
-        .map((item) => {
-            const visualName = itemManifest[item.itemKey] || `⚙️ Unknown Item (${item.itemKey})`;
-            return `${visualName} x\`${item.quantity}\``;
-        })
-        .join("\n");
+    const inventoryList = items.map((item) => {
+        const visualName = itemManifest[item.itemKey] || `⚙️ Unknown Item (${item.itemKey})`;
+        return `${visualName} x\`${item.quantity}\``;
+    }).join("\n");
 
-    const embed = new EmbedBuilder()
-        .setTitle(`🎒 ${interaction.user.username}'s Inventory`)
-        .setDescription(inventoryList)
-        .setColor(0x00ae86);
-
-    await interaction.reply({ embeds: [embed] });
+    const embed = new EmbedBuilder().setTitle(`🎒 ${interaction.user.username}'s Inventory`).setDescription(inventoryList).setColor(0x00ae86);
+    await interaction.editReply({ embeds: [embed] });
 }
 
 async function handleAddMoney(interaction: ChatInputCommandInteraction) {
-    const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
-        interaction.member.roles.cache.has(roleId)
-    );
-
-    if (!isStaff) {
-        return interaction.reply({
-            content: "❌ You do not have a required staff role to use this command.",
-            ephemeral: true
-        });
-    }
+    const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) => interaction.member.roles.cache.has(roleId));
+    if (!isStaff) return void await interaction.editReply({ content: "❌ You do not have a required staff role to use this command." });
 
     const targetUser = interaction.options.getUser("user", true);
     const amount = interaction.options.getInteger("amount", true);
 
-    if (amount <= 0 || amount > 1000000) {
-        return interaction.reply({
-            content: "❌ Please use an integer smaller than or equal to 1,000,000 and bigger than 0",
-            ephemeral: true
-        });
-    }
+    if (amount <= 0 || amount > 1000000) return void await interaction.editReply({ content: "❌ Please use an integer smaller than or equal to 1,000,000 and bigger than 0" });
 
     const [profile] = await EconomyProfile.findOrCreate({
         where: { guildId: interaction.guildId!, userId: targetUser.id },
-        defaults: { guildId: interaction.guildId!, userId: targetUser.id, balance: 100 }
+        defaults: { guildId: interaction.guildId!, userId: targetUser.id, balance: STARTING_BALANCE }
     });
 
     profile.balance += amount;
@@ -495,36 +428,19 @@ async function handleAddMoney(interaction: ChatInputCommandInteraction) {
 
     const formattedAmount = format(config.economy.currencyFormat, amount);
     const formattedBalance = format(config.economy.currencyFormat, profile.balance);
+    const replyMessage = format(config.economy.addMoney, formattedAmount, targetUser.username, formattedBalance, config.economy.coinEmoji);
 
-    const replyMessage = format(
-        config.economy.addMoney,
-        formattedAmount,
-        targetUser.username,
-        formattedBalance,
-        config.economy.coinEmoji
-    );
-
-    await interaction.reply(replyMessage);
+    await interaction.editReply({ content: replyMessage });
 }
 
 async function handleSetBalance(interaction: ChatInputCommandInteraction) {
-    const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
-        interaction.member.roles.cache.has(roleId)
-    );
-
-    if (!isStaff) {
-        return interaction.reply({
-            content: "❌ You do not have a required staff role to use this command.",
-            ephemeral: true
-        });
-    }
+    const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) => interaction.member.roles.cache.has(roleId));
+    if (!isStaff) return void await interaction.editReply({ content: "❌ You do not have a required staff role to use this command." });
 
     const targetUser = interaction.options.getUser("user", true);
     const amount = interaction.options.getInteger("amount", true);
 
-    if (amount < 0 || amount > 2_000_000_000) {
-        return interaction.reply({ content: "❌ Invalid amount range (0 to 2B).", ephemeral: true });
-    }
+    if (amount < 0 || amount > 2_000_000_000) return void await interaction.editReply({ content: "❌ Invalid amount range (0 to 2B)." });
 
     const [profile] = await EconomyProfile.findOrCreate({
         where: { guildId: interaction.guildId!, userId: targetUser.id },
@@ -534,22 +450,12 @@ async function handleSetBalance(interaction: ChatInputCommandInteraction) {
     profile.balance = amount;
     await profile.save();
 
-    await interaction.reply({
-        content: `⚙️ **Database Updated:** ${targetUser.username}'s balance has been explicitly set to \`$${amount}\`.`,
-    });
+    await interaction.editReply({ content: `⚙️ **Database Updated:** ${targetUser.username}'s balance has been explicitly set to \`$${amount}\`.` });
 }
 
 async function handleAddShopItem(interaction: ChatInputCommandInteraction) {
-    const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
-        interaction.member.roles.cache.has(roleId)
-    );
-
-    if (!isStaff) {
-        return interaction.reply({
-            content: "❌ You do not have a required staff role to use this command.",
-            ephemeral: true
-        });
-    }
+    const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) => interaction.member.roles.cache.has(roleId));
+    if (!isStaff) return void await interaction.editReply({ content: "❌ You do not have a required staff role to use this command." });
 
     const itemId = interaction.options.getString("id", true).toLowerCase();
     const name = interaction.options.getString("name", true);
@@ -558,67 +464,40 @@ async function handleAddShopItem(interaction: ChatInputCommandInteraction) {
     const role = interaction.options.getRole("role", false);
     const stock = interaction.options.getInteger("stock") ?? -1;
 
-    if (price < 0) return interaction.reply({ content: "❌ Price cannot be negative.", ephemeral: true });
+    if (price < 0) return void await interaction.editReply({ content: "❌ Price cannot be negative." });
 
     const [item, created] = await ShopItem.findOrCreate({
         where: { guildId: interaction.guildId!, itemId: itemId },
-        defaults: {
-            guildId: interaction.guildId!,
-            itemId: itemId,
-            name: name,
-            price: price,
-            description: description,
-            roleId: role?.id || null,
-            stock: stock
-        }
+        defaults: { guildId: interaction.guildId!, itemId: itemId, name: name, price: price, description: description, roleId: role?.id || null, stock: stock }
     });
 
-    if (!created) {
-        return interaction.reply({ content: `❌ An item with the ID \`${itemId}\` already exists!`, ephemeral: true });
-    }
+    if (!created) return void await interaction.editReply({ content: `❌ An item with the ID \`${itemId}\` already exists!` });
 
     const stockMsg = stock === -1 ? "Infinite" : stock.toString();
-    await interaction.reply({ content: `✅ Created new shop item: **${name}** for \`$${price}\` (Stock: ${stockMsg}).` });
+    await interaction.editReply({ content: `✅ Created new shop item: **${name}** for \`$${price}\` (Stock: ${stockMsg}).` });
 }
 
 async function handleRemoveShopItem(interaction: ChatInputCommandInteraction) {
-    const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
-        interaction.member.roles.cache.has(roleId)
-    );
-
-    if (!isStaff) {
-        return interaction.reply({
-            content: "❌ You do not have a required staff role to use this command.",
-            ephemeral: true
-        });
-    }
+    const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) => interaction.member.roles.cache.has(roleId));
+    if (!isStaff) return void await interaction.editReply({ content: "❌ You do not have a required staff role to use this command." });
 
     const itemId = interaction.options.getString("id", true).toLowerCase();
 
-    const deleted = await ShopItem.destroy({
-        where: { guildId: interaction.guildId!, itemId: itemId }
-    });
+    const deleted = await ShopItem.destroy({ where: { guildId: interaction.guildId!, itemId: itemId } });
+    if (deleted === 0) return void await interaction.editReply({ content: `❌ Could not find an item with the ID \`${itemId}\`.` });
 
-    if (deleted === 0) {
-        return interaction.reply({ content: `❌ Could not find an item with the ID \`${itemId}\`.`, ephemeral: true });
-    }
-
-    await interaction.reply({ content: `🗑️ Successfully removed \`${itemId}\` from the shop.` });
+    await interaction.editReply({ content: `🗑️ Successfully removed \`${itemId}\` from the shop.` });
 }
 
 async function handleGambleCoinflip(interaction: ChatInputCommandInteraction) {
     const betAmount = interaction.options.getInteger("amount", true);
-
     const [profile] = await EconomyProfile.findOrCreate({
         where: { guildId: interaction.guildId!, userId: interaction.user.id },
         defaults: { guildId: interaction.guildId!, userId: interaction.user.id, balance: 100 }
     });
 
     if (profile.balance < betAmount) {
-        return interaction.reply({
-            content: `❌ You can't afford that! You only have \`$${profile.balance}\` to your name.`,
-            ephemeral: true,
-        });
+        return void await interaction.editReply({ content: `❌ You can't afford that! You only have \`$${profile.balance}\` to your name.` });
     }
 
     const isWinner = randomUtils.pickRandom([true, false]);
@@ -626,15 +505,11 @@ async function handleGambleCoinflip(interaction: ChatInputCommandInteraction) {
     if (isWinner) {
         profile.balance += betAmount;
         await profile.save();
-        await interaction.reply({
-            content: `🎰 **JACKPOT!** The coin landed in your favor. You won \`$${betAmount}\`!\n💰 Your new balance is \`$${profile.balance}\`.`
-        });
+        await interaction.editReply({ content: `🎰 **JACKPOT!** The coin landed in your favor. You won \`$${betAmount}\`!\n💰 Your new balance is \`$${profile.balance}\`.` });
     } else {
         profile.balance -= betAmount;
         await profile.save();
-        await interaction.reply({
-            content: `📉 **Bust!** Lady Luck was not on your side today. You lost \`$${betAmount}\`.\n💸 Your remaining balance is \`$${profile.balance}\`.`
-        });
+        await interaction.editReply({ content: `📉 **Bust!** Lady Luck was not on your side today. You lost \`$${betAmount}\`.\n💸 Your remaining balance is \`$${profile.balance}\`.` });
     }
 }
 
@@ -648,10 +523,7 @@ async function handleGambleDice(interaction: ChatInputCommandInteraction) {
     });
 
     if (profile.balance < betAmount) {
-        return interaction.reply({
-            content: `❌ You only have \`$${profile.balance}\`. You can't bet what you don't own!`,
-            ephemeral: true,
-        });
+        return void await interaction.editReply({ content: `❌ You only have \`$${profile.balance}\`. You can't bet what you don't own!` });
     }
 
     const diceRoll = randomUtils.getRandomIntInclusive(1, 6);
@@ -660,15 +532,11 @@ async function handleGambleDice(interaction: ChatInputCommandInteraction) {
         const winnings = betAmount * 5;
         profile.balance += winnings;
         await profile.save();
-        await interaction.reply({
-            content: `🎲 The die rolled a **${diceRoll}**!\n🎉 **INCREDIBLE!** You guessed correctly and won \`$${winnings}\`!\n💰 Your new balance is \`$${profile.balance}\`.`
-        });
+        await interaction.editReply({ content: `🎲 The die rolled a **${diceRoll}**!\n🎉 **INCREDIBLE!** You guessed correctly and won \`$${winnings}\`!\n💰 Your new balance is \`$${profile.balance}\`.` });
     } else {
         profile.balance -= betAmount;
         await profile.save();
-        await interaction.reply({
-            content: `🎲 The die rolled a **${diceRoll}**...\n📉 You guessed ${guess}. You lost your bet of \`$${betAmount}\`.\n💸 Your remaining balance is \`$${profile.balance}\`.`
-        });
+        await interaction.editReply({ content: `🎲 The die rolled a **${diceRoll}**...\n📉 You guessed ${guess}. You lost your bet of \`$${betAmount}\`.\n💸 Your remaining balance is \`$${profile.balance}\`.` });
     }
 }
 
@@ -680,9 +548,6 @@ interface RouletteBet {
 }
 
 async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
-    // ⏱️ Defer here directly since roulette takes time to process threads and is a public game
-    await interaction.deferReply();
-
     const customSeconds = interaction.options.getInteger("seconds") || 60;
     const timeMs = customSeconds * 1000;
 
@@ -709,23 +574,15 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
         `👑 **<@${interaction.user.id}>**, type \`spin\` when everyone is ready!`
     );
 
-    const collector = thread.createMessageCollector({
-        filter: (m) => !m.author.bot,
-        time: timeMs
-    });
+    const collector = thread.createMessageCollector({ filter: (m) => !m.author.bot, time: timeMs });
 
     collector.on("collect", async (message) => {
         const args = message.content.trim().toLowerCase().split(/\s+/);
         const commandOrType = args[0];
 
         if (commandOrType === "spin") {
-            if (message.author.id !== interaction.user.id) {
-                return void await message.react("❌");
-            }
-            if (bets.length === 0) {
-                return void await message.react("❌");
-            }
-
+            if (message.author.id !== interaction.user.id) return void await message.react("❌");
+            if (bets.length === 0) return void await message.react("❌");
             collector.stop("spun");
             return;
         }
@@ -733,7 +590,6 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
         const validBetTypes = ["red", "black", "even", "odd"];
         if (validBetTypes.includes(commandOrType)) {
             const amountStr = args[1];
-
             if (!amountStr) return void await message.react("❌");
 
             const amount = parseInt(amountStr, 10);
@@ -749,13 +605,7 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
             profile.balance -= amount;
             await profile.save();
 
-            bets.push({
-                userId: message.author.id,
-                username: message.author.username,
-                amount: amount,
-                betType: commandOrType as any
-            });
-
+            bets.push({ userId: message.author.id, username: message.author.username, amount: amount, betType: commandOrType as any });
             await message.react("✅");
         }
     });
@@ -765,10 +615,7 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
             await thread.send("⏰ Table closed automatically due to inactivity.");
             for (const bet of bets) {
                 const profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: bet.userId } });
-                if (profile) {
-                    profile.balance += bet.amount;
-                    await profile.save();
-                }
+                if (profile) { profile.balance += bet.amount; await profile.save(); }
             }
             await thread.setLocked(true);
             await thread.setArchived(true);
@@ -777,11 +624,8 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
 
         const winningNumber = Math.floor(Math.random() * 37);
         const redNumbers = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
-
         let color: "green" | "red" | "black" = "green";
-        if (winningNumber > 0) {
-            color = redNumbers.includes(winningNumber) ? "red" : "black";
-        }
+        if (winningNumber > 0) color = redNumbers.includes(winningNumber) ? "red" : "black";
 
         const isEven = winningNumber > 0 && winningNumber % 2 === 0;
         const isOdd = winningNumber > 0 && winningNumber % 2 !== 0;
@@ -793,18 +637,14 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
 
         for (const bet of bets) {
             let won = false;
-
             if (bet.betType === "red" && color === "red") won = true;
             if (bet.betType === "black" && color === "black") won = true;
             if (bet.betType === "even" && isEven) won = true;
             if (bet.betType === "odd" && isOdd) won = true;
 
             const profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: bet.userId } });
-
             const currentNet = userNetTotals.get(bet.userId) ?? 0;
-            if (!userBreakdowns.has(bet.userId)) {
-                userBreakdowns.set(bet.userId, []);
-            }
+            if (!userBreakdowns.has(bet.userId)) userBreakdowns.set(bet.userId, []);
 
             const formattedBetAmount = format(config.economy.currencyFormat, bet.amount);
 
@@ -812,7 +652,6 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
                 const winnings = bet.amount * 2;
                 profile.balance += winnings;
                 await profile.save();
-
                 const formattedWinnings = format(config.economy.currencyFormat, winnings);
                 userBreakdowns.get(bet.userId)!.push(`${bet.betType}: Won ${formattedWinnings}`);
                 userNetTotals.set(bet.userId, currentNet + bet.amount);
@@ -828,18 +667,13 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
         for (const [userId, breakdownArray] of userBreakdowns.entries()) {
             const member = await thread.guild.members.fetch(userId).catch(() => null);
             const displayName = member ? member.displayName : `User(${userId})`;
-
             const netValue = userNetTotals.get(userId) ?? 0;
             let netStatus = "Broke Even!";
 
-            if (netValue > 0) {
-                netStatus = `Won Net ${format(config.economy.currencyFormat, netValue)}!`;
-            } else if (netValue < 0) {
-                netStatus = `Lost Net ${format(config.economy.currencyFormat, Math.abs(netValue))}!`;
-            }
+            if (netValue > 0) netStatus = `Won Net ${format(config.economy.currencyFormat, netValue)}!`;
+            else if (netValue < 0) netStatus = `Lost Net ${format(config.economy.currencyFormat, Math.abs(netValue))}!`;
 
-            const betHistoryStr = breakdownArray.join(" ");
-            outputMessage += `**${displayName}**: ${betHistoryStr} | **${netStatus}**\n`;
+            outputMessage += `**${displayName}**: ${breakdownArray.join(" ")} | **${netStatus}**\n`;
         }
 
         await thread.send(outputMessage);
@@ -853,65 +687,45 @@ async function seedDefaultShopItems(guildId: string) {
         await ShopItem.findOrCreate({
             where: {guildId: guildId, name: item.name},
             defaults: {
-                guildId: guildId,
-                itemId: item.itemId,
-                name: item.name,
-                price: item.price,
-                description: item.description,
-                roleId: item.roleId || null,
-                durationDays: item.durationDays || null,
-                stock: item.stock
+                guildId: guildId, itemId: item.itemId, name: item.name, price: item.price,
+                description: item.description, roleId: item.roleId || null,
+                durationDays: item.durationDays || null, stock: item.stock
             }
         });
     }
 }
 
 async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
-    // ⏱️ Defer explicitly here as ephemeral since leaderboard is highly customized
-    await interaction.deferReply({ ephemeral: true });
-
     const PAGE_SIZE = 10;
     let currentPage = 1;
 
     const actualCount = await EconomyProfile.count({ where: { guildId: interaction.guildId! } });
     const totalProfiles = Math.min(actualCount, 100);
-    if (totalProfiles === 0) {
-        return interaction.editReply("📉 The economy is completely empty. Nobody has any money yet!");
-    }
+    if (totalProfiles === 0) return void await interaction.editReply("📉 The economy is completely empty. Nobody has any money yet!");
     const maxPage = Math.ceil(totalProfiles / PAGE_SIZE);
 
     const generatePage = async (page: number) => {
         const offset = (page - 1) * PAGE_SIZE;
-
         const topProfiles = await EconomyProfile.findAll({
             where: { guildId: interaction.guildId! },
-            attributes: {
-                include: [
-                    [Sequelize.literal('(RANK() OVER (ORDER BY balance DESC))'), 'rank']
-                ]
-            },
-            order: [['balance', 'DESC']],
-            limit: PAGE_SIZE,
-            offset: offset
+            attributes: { include: [[Sequelize.literal('(RANK() OVER (ORDER BY balance DESC))'), 'rank']] },
+            order: [['balance', 'DESC']], limit: PAGE_SIZE, offset: offset
         });
 
         const descriptionLines = topProfiles.map((profile) => {
             const rank = profile.get('rank') as number;
             const userMention = `<@${profile.userId}>`;
-
             let rankEmoji = "🔹";
             if (rank === 1) rankEmoji = "🥇";
             else if (rank === 2) rankEmoji = "🥈";
             else if (rank === 3) rankEmoji = "🥉";
             else rankEmoji = `**#${rank}**`;
-
             return `${rankEmoji} ${userMention} — **$${profile.balance}**`;
         });
-        const description = descriptionLines.join("\n") || "No players found.";
 
         return new EmbedBuilder()
             .setTitle("🏆 Economy Leaderboard")
-            .setDescription(description)
+            .setDescription(descriptionLines.join("\n") || "No players found.")
             .setColor(0xFFD700)
             .setFooter({ text: `Page ${page} of ${maxPage} | Total Players: ${totalProfiles}` });
     };
@@ -919,16 +733,8 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
     const generateButtons = (page: number) => {
         const row = new ActionRowBuilder<ButtonBuilder>();
         row.addComponents(
-            new ButtonBuilder()
-                .setCustomId('prev_page')
-                .setLabel('◀ Previous')
-                .setStyle(ButtonStyle.Primary)
-                .setDisabled(page === 1),
-            new ButtonBuilder()
-                .setCustomId('next_page')
-                .setLabel('Next ▶')
-                .setStyle(ButtonStyle.Primary)
-                .setDisabled(page === maxPage)
+            new ButtonBuilder().setCustomId('economy:prev_page').setLabel('◀ Previous').setStyle(ButtonStyle.Primary).setDisabled(page === 1),
+            new ButtonBuilder().setCustomId('economy:next_page').setLabel('Next ▶').setStyle(ButtonStyle.Primary).setDisabled(page === maxPage)
         );
         return row;
     };
@@ -936,36 +742,22 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
     const initialEmbed = await generatePage(currentPage);
     const components = maxPage > 1 ? [generateButtons(currentPage)] : [];
 
-    const message = await interaction.editReply({
-        embeds: [initialEmbed],
-        components: components
-    });
-
+    const message = await interaction.editReply({ embeds: [initialEmbed], components: components });
     if (maxPage <= 1) return;
 
-    const collector = message.createMessageComponentCollector({
-        componentType: ComponentType.Button,
-        time: 60000
-    });
+    const collector = message.createMessageComponentCollector({ componentType: ComponentType.Button, time: 60000 });
 
     collector.on("collect", async (i) => {
         await i.deferUpdate();
-        if (i.customId === 'prev_page') currentPage--;
-        if (i.customId === 'next_page') currentPage++;
+        if (i.customId === 'economy:prev_page') currentPage--;
+        if (i.customId === 'economy:next_page') currentPage++;
 
-        const newEmbed = await generatePage(currentPage);
-        const newButtons = generateButtons(currentPage);
-
-        await i.editReply({
-            embeds: [newEmbed],
-            components: [newButtons]
-        });
+        await i.editReply({ embeds: [await generatePage(currentPage)], components: [generateButtons(currentPage)] });
     });
 
     collector.on("end", async () => {
         const disabledRow = generateButtons(currentPage);
         disabledRow.components.forEach(c => c.setDisabled(true));
-
         await interaction.editReply({ components: [disabledRow] }).catch(() => null);
     });
 }

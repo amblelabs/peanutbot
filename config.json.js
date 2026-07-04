@@ -176,6 +176,10 @@ Consider donating to one of the following people:
     teamRole: "1262624821582364703",
     gambleChannel: ["1522846518829125642"]
   },
+  swear: {
+    period: 60 * 1000,
+    reply: "GET TIMEOUT FOR SWEARING AT ME >:("
+  },
   wikisearch: {
     baseUrl: "https://amblelabs.dev/wiki",
     index: "/api/search",

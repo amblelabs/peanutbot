@@ -19,7 +19,7 @@ async function onMessage(ctx: Ctx, message: Message) {
             const member = await message.guild.members.fetch(message.author.id);
             // 5. Apply the timeout
             if (member) {
-                message.reply(config.swear.reply)
+                await message.reply(config.swear.reply)
                 await member.timeout(config.swear.period, "peanut: swore at me :(");
             }
         } catch (error) {

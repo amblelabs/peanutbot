@@ -16,6 +16,7 @@ import {
     Op, Sequelize
 } from "sequelize";
 import type { Cmd } from "~/util/base";
+import { format } from "~/util/base";
 import randomUtils from "~/util/rnd";
 import config from "config.json";
 
@@ -475,7 +476,7 @@ async function handleInventory(interaction: ChatInputCommandInteraction) {
 }
 
 async function handleAddMoney(interaction: ChatInputCommandInteraction) {
-    // 👇 Your exact role-check logic (Replace "1234" with your real Staff role ID)
+    // Check for the staff role
     if (!interaction.inCachedGuild() || !interaction.member.roles.cache.has(config.economy.teamRole)) {
         return interaction.reply({
             content: "❌ You do not have the required staff role to grant currency.",
@@ -486,7 +487,7 @@ async function handleAddMoney(interaction: ChatInputCommandInteraction) {
     const targetUser = interaction.options.getUser("user", true);
     const amount = interaction.options.getInteger("amount", true);
 
-    // Prevent staff from entering negative and/or too big numbers to steal money
+    // Prevent staff from entering negative and/or too big numbers
     if (amount <= 0 || amount > 1000000) {
         return interaction.reply({
             content: "❌ Please use an integer smaller than 1,000,000 and bigger than 0",
@@ -504,9 +505,20 @@ async function handleAddMoney(interaction: ChatInputCommandInteraction) {
     profile.balance += amount;
     await profile.save();
 
-    await interaction.reply({
-        content: `🪙 **Transaction Complete:** Successfully added \`$${amount}\` to ${targetUser.username}'s profile. Their new balance is \`$${profile.balance}\`.`,
-    });
+    // 1. Format the money amounts (Outputs: "100$")
+    const formattedAmount = format(config.economy.currencyFormat, amount);
+    const formattedBalance = format(config.economy.currencyFormat, profile.balance);
+
+    // 2. Inject those strings and the username into your config message
+    const replyMessage = format(
+        config.economy.addMoney, // 👈 Fixed this path to match your config structure!
+        formattedAmount,       // Becomes {0}
+        targetUser.username,   // Becomes {1}
+        formattedBalance,
+        config.economy.coinEmoji
+    );
+
+    await interaction.reply(replyMessage);
 }
 async function handleSetBalance(interaction: ChatInputCommandInteraction) {
     // Your exact staff role protection check

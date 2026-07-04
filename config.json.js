@@ -162,6 +162,7 @@ Consider donating to one of the following people:
     bypassId: "1257750834150637599"
   },
   economy: {
+    currencyFormat: "{0}$",
     shopItems: [
       {
         itemId: "beta_role",
@@ -174,7 +175,9 @@ Consider donating to one of the following people:
       },
     ],
     teamRole: "1262624821582364703",
-    gambleChannel: ["1522846518829125642"]
+    gambleChannel: ["1522846518829125642"],
+    addMoney: "{3} **Transaction Complete:** Successfully added `{0}` to {1}'s profile. Their new balance is `{2}`.",
+  coinEmoji:"<:al_logo:1492686347666980944>"
   },
   swear: {
     period: 60 * 1000,

@@ -13,7 +13,7 @@ import {
     type CreationOptional,
     type InferAttributes,
     type InferCreationAttributes,
-    Op
+    Op, Sequelize
 } from "sequelize";
 import type { Cmd } from "~/util/base";
 import randomUtils from "~/util/rnd";
@@ -831,16 +831,15 @@ async function seedDefaultShopItems(guildId: string) {
 async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply();
 
-    const PAGE_SIZE = 20;
+    const PAGE_SIZE = 10;
     let currentPage = 1;
 
     // 👇 1. Get the total number of players to calculate max pages
-    const totalProfiles = await EconomyProfile.count({ where: { guildId: interaction.guildId! } });
-
+    const actualCount = await EconomyProfile.count({ where: { guildId: interaction.guildId! } });
+    const totalProfiles = Math.min(actualCount, 100);
     if (totalProfiles === 0) {
         return interaction.editReply("📉 The economy is completely empty. Nobody has any money yet!");
     }
-
     const maxPage = Math.ceil(totalProfiles / PAGE_SIZE);
 
     // 👇 2. Helper function to fetch and format a specific page
@@ -849,27 +848,21 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
 
         const topProfiles = await EconomyProfile.findAll({
             where: { guildId: interaction.guildId! },
+            attributes: {
+                include: [
+                    [Sequelize.literal('(RANK() OVER (ORDER BY balance DESC))'), 'rank']
+                ]
+            },
             order: [['balance', 'DESC']],
             limit: PAGE_SIZE,
             offset: offset
         });
-
-        let description = "";
-
-        for (let i = 0; i < topProfiles.length; i++) {
-            const profile = topProfiles[i];
-
-            // 👇 Calculate true rank by counting how many people have MORE money
-            const higherBalances = await EconomyProfile.count({
-                where: {
-                    guildId: interaction.guildId!,
-                    balance: { [Op.gt]: profile.balance } // 👈 Changed to Op.gt
-                }
-            });
-            const rank = higherBalances + 1;
+        // Instead of waiting for User 1, then User 2, we use Promise.all to fetch all 20 concurrently.
+        const formatPromises = topProfiles.map(async (profile) => {
+            // Extract the rank that the database calculated for us
+            const rank = profile.get('rank') as number;
 
             let username = "Unknown User";
-
             try {
                 const user = await interaction.client.users.fetch(profile.userId);
                 username = user.username;
@@ -883,8 +876,12 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
             else if (rank === 3) rankEmoji = "🥉";
             else rankEmoji = `**#${rank}**`;
 
-            description += `${rankEmoji} ${username} — **$${profile.balance}**\n`;
-        }
+            return `${rankEmoji} ${username} — **$${profile.balance}**`;
+        });
+
+        // Wait for all 20 formatting promises to finish, then join them with newlines
+        const descriptionLines = await Promise.all(formatPromises);
+        const description = descriptionLines.join("\n") || "No players found.";
 
         return new EmbedBuilder()
             .setTitle("🏆 Economy Leaderboard")

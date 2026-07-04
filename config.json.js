@@ -161,15 +161,17 @@ Consider donating to one of the following people:
     banTag: "1406738115468722257",
     bypassId: "1257750834150637599"
   },
-  economy:{
-    shopItems:[
-      { itemId: "super_role",
-        name: "Beta Access",
+  economy: {
+    shopItems: [
+      {
+        itemId: "beta_role",
+        name: "Beta Access for 7 days",
         price: 2500,
         description: "Purchase for access to beta builds!",
         roleId: "1510652320432521327",
+        durationDays: 7,
         stock: -1
-      }
+      },
     ],
     teamRole: "1262624821582364703",
     gambleChannel: ["1522846518829125642"]

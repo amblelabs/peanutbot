@@ -161,6 +161,10 @@ Consider donating to one of the following people:
     banTag: "1406738115468722257",
     bypassId: "1257750834150637599"
   },
+  swear: {
+    period: 60 * 1000,
+    reply: "GET TIMEOUT FOR SWEARING AT ME >:("
+  },
   wikisearch: {
     baseUrl: "https://amblelabs.dev/wiki",
     index: "/api/search",

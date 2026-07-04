@@ -174,7 +174,7 @@ Consider donating to one of the following people:
         stock: -1
       },
     ],
-    teamRole: "1262624821582364703",
+    teamRole: ["1262624821582364703"],
     gambleChannel: ["1522846518829125642"],
     addMoney: "{3} **Transaction Complete:** Successfully added `{0}` to {1}'s profile. Their new balance is `{2}`.",
   coinEmoji:"<:al_logo:1492686347666980944>"

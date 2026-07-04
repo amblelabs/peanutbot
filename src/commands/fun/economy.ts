@@ -229,6 +229,13 @@ export default {
                         sub
                             .setName("roulette")
                             .setDescription("Open a roulette table and place multiple bets! (1-24, Red/Black, Even/Odd)")
+                            .addIntegerOption(option =>
+                                option.setName("seconds")
+                                    .setDescription("How many seconds should the table stay open? (Default: 60)")
+                                    .setRequired(false)
+                                    .setMinValue(15)   // Give people at least 15 seconds to bet!
+                                    .setMaxValue(1800) // Max 30 minutes (1800 seconds)
+                            )
                     )
             );
 
@@ -236,7 +243,7 @@ export default {
 
     onInteraction: async (ctx, interaction) => {
         if (!interaction.isChatInputCommand()) return;
-
+        await interaction.deferReply();
         const group = interaction.options.getSubcommandGroup(false);
         const sub = interaction.options.getSubcommand();
 
@@ -244,8 +251,13 @@ export default {
         switch (group) {
 
             case "gamble":
-                // Guard: Check if the current channel is in our allowed list
-                if (!config.economy.gambleChannel.includes(interaction.channelId)) {
+                const hasBypassRole = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
+                    interaction.member.roles.cache.has(roleId)
+                );
+                const isExplicitAdmin = interaction.inCachedGuild() && interaction.member.permissions.has("Administrator");
+
+                // ⛔ Guard: Block them only if they lack a bypass role AND aren't an Admin AND are in the wrong channel
+                if (!hasBypassRole && !isExplicitAdmin && !config.economy.gambleChannel.includes(interaction.channelId)) {
                     const allowedList = config.economy.gambleChannel.map((id: string) => `<#${id}>`).join(", ");
 
                     return interaction.reply({
@@ -477,9 +489,13 @@ async function handleInventory(interaction: ChatInputCommandInteraction) {
 
 async function handleAddMoney(interaction: ChatInputCommandInteraction) {
     // Check for the staff role
-    if (!interaction.inCachedGuild() || !interaction.member.roles.cache.has(config.economy.teamRole)) {
+    const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
+        interaction.member.roles.cache.has(roleId)
+    );
+
+    if (!isStaff) {
         return interaction.reply({
-            content: "❌ You do not have the required staff role to grant currency.",
+            content: "❌ You do not have a required staff role to use this command.",
             ephemeral: true
         });
     }
@@ -490,7 +506,7 @@ async function handleAddMoney(interaction: ChatInputCommandInteraction) {
     // Prevent staff from entering negative and/or too big numbers
     if (amount <= 0 || amount > 1000000) {
         return interaction.reply({
-            content: "❌ Please use an integer smaller than 1,000,000 and bigger than 0",
+            content: "❌ Please use an integer smaller than or equal to 1,000,000 and bigger than 0",
             ephemeral: true
         });
     }
@@ -522,8 +538,15 @@ async function handleAddMoney(interaction: ChatInputCommandInteraction) {
 }
 async function handleSetBalance(interaction: ChatInputCommandInteraction) {
     // Your exact staff role protection check
-    if (!interaction.inCachedGuild() || !interaction.member.roles.cache.has(config.economy.teamRole)) {
-        return interaction.reply({ content: "❌ Staff only.", ephemeral: true });
+    const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
+        interaction.member.roles.cache.has(roleId)
+    );
+
+    if (!isStaff) {
+        return interaction.reply({
+            content: "❌ You do not have a required staff role to use this command.",
+            ephemeral: true
+        });
     }
 
     const targetUser = interaction.options.getUser("user", true);
@@ -547,8 +570,15 @@ async function handleSetBalance(interaction: ChatInputCommandInteraction) {
     });
 }
 async function handleAddShopItem(interaction: ChatInputCommandInteraction) {
-    if (!interaction.inCachedGuild() || !interaction.member.roles.cache.has(config.economy.teamRole)) {
-        return interaction.reply({ content: "❌ Staff only.", ephemeral: true });
+    const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
+        interaction.member.roles.cache.has(roleId)
+    );
+
+    if (!isStaff) {
+        return interaction.reply({
+            content: "❌ You do not have a required staff role to use this command.",
+            ephemeral: true
+        });
     }
 
     const itemId = interaction.options.getString("id", true).toLowerCase();
@@ -583,8 +613,15 @@ async function handleAddShopItem(interaction: ChatInputCommandInteraction) {
 
 async function handleRemoveShopItem(interaction: ChatInputCommandInteraction) {
     // Staff Check
-    if (!interaction.inCachedGuild() || !interaction.member.roles.cache.has(config.economy.teamRole)) {
-        return interaction.reply({ content: "❌ Staff only.", ephemeral: true });
+    const isStaff = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
+        interaction.member.roles.cache.has(roleId)
+    );
+
+    if (!isStaff) {
+        return interaction.reply({
+            content: "❌ You do not have a required staff role to use this command.",
+            ephemeral: true
+        });
     }
 
     const itemId = interaction.options.getString("id", true).toLowerCase();
@@ -668,153 +705,182 @@ async function handleGambleDice(interaction: ChatInputCommandInteraction) {
     }
 }
 
-// 👇 Track which channels currently have an active game running
-const activeRouletteChannels = new Set<string>();
+interface RouletteBet {
+    userId: string;
+    username: string;
+    amount: number;
+    betType: "red" | "black" | "even" | "odd";
+}
 
 async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
-    // 👇 Guard: Prevent multiple tables in the same channel
-    if (activeRouletteChannels.has(interaction.channelId)) {
-        return interaction.reply({
-            content: "❌ There is already an active roulette table in this channel! Please wait for the current spin to finish.",
-            ephemeral: true
-        });
-    }
+    // ❌ REMOVED interaction.deferReply() from here since it's now handled at the entry point
 
-    // Lock the channel
-    activeRouletteChannels.add(interaction.channelId);
+    // ⏱️ Get the custom time in seconds, or default to 60 seconds
+    const customSeconds = interaction.options.getInteger("seconds") || 60;
+    const timeMs = customSeconds * 1000;
 
-    await interaction.reply({
-        content: "🎡 **MULTIPLAYER ROULETTE IS OPEN!**\n\n" +
-            "**Anyone** can jump in! Valid bets: `red`, `black`, `even`, `odd`, or a number `1` through `24`.\n" +
-            "**How to bet:** Type `bet <choice> <amount>` (e.g., `bet red 50`, `bet 14 100`).\n" +
-            "**When ready:** Anyone can type `spin` to roll the wheel! (Auto-spins in 60s)."
+    // 🎰 Edit the existing deferred reply safely
+    const initialReply = await interaction.editReply({
+        content: `🎰 **${interaction.user.username}** opened a Roulette Table for **${customSeconds} seconds**! Join the thread below to place your bets.`
     });
 
-    const bets: { userId: string; username: string; type: string; amount: number }[] = [];
-    const filter = (m: Message) => !m.author.bot;
-    const channel = interaction.channel as TextChannel;
-    if (!interaction.channel || !interaction.channel.isTextBased()) {
-        return interaction.reply({
-            content: "❌ This command can only be played in standard text channels!",
-            ephemeral: true
-        });
-    }
-    const collector = channel.createMessageCollector({ filter, time: 60000 });
+    const thread = await initialReply.startThread({
+        name: `🎰 Roulette Table - ${interaction.user.username}`,
+        autoArchiveDuration: 60,
+        reason: "Roulette Game Room"
+    });
 
-    collector.on("collect", async (m) => {
-        const input = m.content.toLowerCase().trim();
+    const bets: RouletteBet[] = [];
 
-        if (input === "spin") {
-            collector.stop("user_spun");
+    // Mention the time limit in seconds
+    await thread.send(
+        `🎡 **Roulette Table Opened!** (Closes in ${customSeconds} seconds)\n\n` +
+        `To enter, type your bet choice followed by your amount. **Example: \`red 250\`**\n` +
+        `• \`red <amount>\` (2x payout)\n` +
+        `• \`black <amount>\` (2x payout)\n` +
+        `• \`even <amount>\` (2x payout)\n` +
+        `• \`odd <amount>\` (2x payout)\n\n` +
+        `👍 _The bot will react with ✅ if your bet is accepted, or ❌ if something is wrong._\n` +
+        `👑 **<@${interaction.user.id}>**, type \`spin\` when everyone is ready!`
+    );
+
+    // ⏱️ Plug the dynamic millisecond timer into the collector
+    const collector = thread.createMessageCollector({
+        filter: (m) => !m.author.bot,
+        time: timeMs
+    });
+
+    collector.on("collect", async (message) => {
+        const args = message.content.trim().toLowerCase().split(/\s+/);
+        const commandOrType = args[0];
+
+        if (commandOrType === "spin") {
+            if (message.author.id !== interaction.user.id) {
+                return void await message.react("❌");
+            }
+            if (bets.length === 0) {
+                return void await message.react("❌");
+            }
+
+            collector.stop("spun");
             return;
         }
 
-        // 👇 Guard: Force users to start their message with "bet" so innocent messages are ignored
-        const args = input.split(" ");
-        if (args.length !== 3 || args[0] !== "bet") return;
+        const validBetTypes = ["red", "black", "even", "odd"];
+        if (validBetTypes.includes(commandOrType)) {
+            const amountStr = args[1];
 
-        const betType = args[1];
-        const amount = parseInt(args[2]);
+            if (!amountStr) return void await message.react("❌");
 
-        if (isNaN(amount) || amount <= 0) return;
+            const amount = parseInt(amountStr, 10);
+            if (isNaN(amount) || amount <= 0) return void await message.react("❌");
 
-        const validTextBets = ["red", "black", "even", "odd"];
-        const betNumber = parseInt(betType);
-        const isValidNumber = !isNaN(betNumber) && betNumber >= 1 && betNumber <= 24;
+            const [profile] = await EconomyProfile.findOrCreate({
+                where: { guildId: interaction.guildId!, userId: message.author.id },
+                defaults: { guildId: interaction.guildId!, userId: message.author.id, balance: STARTING_BALANCE }
+            });
 
-        if (!validTextBets.includes(betType) && !isValidNumber) return;
+            if (profile.balance < amount) return void await message.react("❌");
 
-        const [profile] = await EconomyProfile.findOrCreate({
-            where: { guildId: interaction.guildId!, userId: m.author.id },
-            defaults: { guildId: interaction.guildId!, userId: m.author.id, balance: 100 }
-        });
+            profile.balance -= amount;
+            await profile.save();
 
-        if (profile.balance < amount) {
-            const errorMsg = await m.reply(`❌ You only have \`$${profile.balance}\`.`);
-            setTimeout(() => errorMsg.delete().catch(() => null), 3000);
+            bets.push({
+                userId: message.author.id,
+                username: message.author.username,
+                amount: amount,
+                betType: commandOrType as any
+            });
+
+            await message.react("✅");
+        }
+    });
+
+    collector.on("end", async (_, reason) => {
+        if (reason !== "spun") {
+            await thread.send("⏰ Table closed automatically due to inactivity.");
+            for (const bet of bets) {
+                const profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: bet.userId } });
+                if (profile) {
+                    profile.balance += bet.amount;
+                    await profile.save();
+                }
+            }
+            await thread.setLocked(true);
+            await thread.setArchived(true);
             return;
         }
 
-        // Deduct money instantly
-        profile.balance -= amount;
-        await profile.save();
+        const winningNumber = Math.floor(Math.random() * 37);
+        const redNumbers = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
 
-        // Save the bet
-        bets.push({ userId: m.author.id, username: m.author.username, type: betType, amount });
-        m.react("✅").catch(() => null);
-    });
-
-    collector.on("end", async () => {
-        // 👇 Unlock the channel so a new game can be started
-        activeRouletteChannels.delete(interaction.channelId);
-
-        if (bets.length === 0) {
-            return interaction.followUp("⏳ The table closed because no bets were placed.");
+        let color: "green" | "red" | "black" = "green";
+        if (winningNumber > 0) {
+            color = redNumbers.includes(winningNumber) ? "red" : "black";
         }
 
-        await interaction.followUp("🎡 **NO MORE BETS!** Spinning the wheel...");
+        const isEven = winningNumber > 0 && winningNumber % 2 === 0;
+        const isOdd = winningNumber > 0 && winningNumber % 2 !== 0;
 
-        const roll = randomUtils.getRandomIntInclusive(1, 24);
-        const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23];
-        const rollColor = redNumbers.includes(roll) ? "red" : "black";
-        const rollParity = roll % 2 === 0 ? "even" : "odd";
-        const colorEmoji = rollColor === "red" ? "🔴" : "⚫";
+        await thread.send("✨ *The wheel is spinning...* ✨");
 
-        // 👇 Track total winnings AND total bets for the net profit math
-        const playerResults: Record<string, { username: string, totalWon: number, totalBet: number, summary: string }> = {};
+        const userBreakdowns = new Map<string, string[]>();
+        const userNetTotals = new Map<string, number>();
 
         for (const bet of bets) {
-            if (!playerResults[bet.userId]) {
-                playerResults[bet.userId] = { username: bet.username, totalWon: 0, totalBet: 0, summary: "" };
-            }
-
-            // Accumulate everything they spent
-            playerResults[bet.userId].totalBet += bet.amount;
-
             let won = false;
-            let multiplier = 0;
 
-            if (bet.type === rollColor) { won = true; multiplier = 2; }
-            else if (bet.type === rollParity) { won = true; multiplier = 2; }
-            else if (!isNaN(parseInt(bet.type)) && parseInt(bet.type) === roll) { won = true; multiplier = 24; }
+            if (bet.betType === "red" && color === "red") won = true;
+            if (bet.betType === "black" && color === "black") won = true;
+            if (bet.betType === "even" && isEven) won = true;
+            if (bet.betType === "odd" && isOdd) won = true;
 
-            if (won) {
-                const winAmount = bet.amount * multiplier;
-                playerResults[bet.userId].totalWon += winAmount;
-                playerResults[bet.userId].summary += `✅ \`${bet.type}\`: Won **$${winAmount}**\n`;
-            } else {
-                playerResults[bet.userId].summary += `❌ \`${bet.type}\`: Lost\n`;
+            const profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: bet.userId } });
+
+            const currentNet = userNetTotals.get(bet.userId) ?? 0;
+            if (!userBreakdowns.has(bet.userId)) {
+                userBreakdowns.set(bet.userId, []);
             }
-        }
 
-        let finalMessage = `### The wheel landed on **${roll} ${rollColor.toUpperCase()}** ${colorEmoji}!\n\n`;
+            const formattedBetAmount = format(config.economy.currencyFormat, bet.amount);
 
-        for (const [userId, result] of Object.entries(playerResults)) {
-            if (result.totalWon > 0) {
-                const [profile] = await EconomyProfile.findOrCreate({
-                    where: { guildId: interaction.guildId!, userId: userId }
-                });
-
-                profile.balance += result.totalWon;
+            if (won && profile) {
+                const winnings = bet.amount * 2;
+                profile.balance += winnings;
                 await profile.save();
-            }
 
-            // 👇 Calculate actual Net Profit
-            const netProfit = result.totalWon - result.totalBet;
-
-            finalMessage += `**${result.username}**:\n${result.summary}`;
-
-            if (netProfit > 0) {
-                finalMessage += `📈 *Net Profit: +$${netProfit}*\n`;
-            } else if (netProfit < 0) {
-                finalMessage += `📉 *Net Loss: -$${Math.abs(netProfit)}*\n`;
+                const formattedWinnings = format(config.economy.currencyFormat, winnings);
+                userBreakdowns.get(bet.userId)!.push(`${bet.betType}: Won ${formattedWinnings}`);
+                userNetTotals.set(bet.userId, currentNet + bet.amount);
             } else {
-                finalMessage += `⚖️ *Broke Even!*\n`;
+                userBreakdowns.get(bet.userId)!.push(`${bet.betType}: Lost ${formattedBetAmount}`);
+                userNetTotals.set(bet.userId, currentNet - bet.amount);
             }
-            finalMessage += `\n`;
         }
 
-        await interaction.followUp({ content: finalMessage });
+        const emoji = color === "red" ? "🔴" : color === "black" ? "⚫" : "🟢";
+        let outputMessage = `🏁 **The wheel landed on ${winningNumber} ${color.toUpperCase()} ${emoji} !**\n\n`;
+
+        for (const [userId, breakdownArray] of userBreakdowns.entries()) {
+            const member = await thread.guild.members.fetch(userId).catch(() => null);
+            const displayName = member ? member.displayName : `User(${userId})`;
+
+            const netValue = userNetTotals.get(userId) ?? 0;
+            let netStatus = "Broke Even!";
+
+            if (netValue > 0) {
+                netStatus = `Won Net ${format(config.economy.currencyFormat, netValue)}!`;
+            } else if (netValue < 0) {
+                netStatus = `Lost Net ${format(config.economy.currencyFormat, Math.abs(netValue))}!`;
+            }
+
+            const betHistoryStr = breakdownArray.join(" ");
+            outputMessage += `**${displayName}**: ${betHistoryStr} | **${netStatus}**\n`;
+        }
+
+        await thread.send(outputMessage);
+        await thread.setLocked(true);
+        await thread.setArchived(true);
     });
 }
 

@@ -8,13 +8,7 @@ import {
 } from "sequelize";
 import type { Cmd } from "~/util/base";
 import randomUtils from "~/util/rnd";
-// 1. Define the Shop Items
-const SHOP_ITEMS = [
-    { id: "cookie", name: "🍪 Cookie", price: 10, description: "A delicious chocolate chip cookie." },
-    { id: "bronze_medal", name: "🥉 Bronze Medal", price: 150, description: "A basic medal to show off your presence." },
-    { id: "gold_shield", name: "🛡️ Gold Shield", price: 500, description: "The ultimate flex of wealth and protection." },
-    { id: "super_role", name: "👑 VIP Custom Role", price: 2500, description: "Redeemable for a unique colored role!", roleId: "1510652320432521327" }
-];
+import config from "config.json";
 
 // 2. Define the Database Models
 export class EconomyProfile extends Model<
@@ -55,6 +49,7 @@ export class ShopItem extends Model<
     declare createdAt: CreationOptional<Date>;
     declare updatedAt: CreationOptional<Date>;
 }
+const STARTING_BALANCE = 10
 export default {
     data: { name: "economy" },
 
@@ -64,7 +59,7 @@ export default {
             {
                 guildId: { type: DataTypes.STRING, primaryKey: true },
                 userId: { type: DataTypes.STRING, primaryKey: true },
-                balance: { type: DataTypes.INTEGER, defaultValue: 10 },
+                balance: { type: DataTypes.INTEGER, defaultValue: STARTING_BALANCE },
                 createdAt: DataTypes.DATE,
                 updatedAt: DataTypes.DATE,
             },
@@ -105,6 +100,13 @@ export default {
         Inventory.belongsTo(EconomyProfile, { foreignKey: "userId", targetKey: "userId" });
 
         await ctx.sql.sync();
+
+        const guilds = ctx.client.guilds.cache;
+
+        for (const [guildId, guild] of guilds) {
+            // 3. Seed the default items for each server!
+            await seedDefaultShopItems(guildId);
+        }
     },
 
     slash: (builder) => {
@@ -116,7 +118,7 @@ export default {
                     .setName("balance")
                     .setDescription("Check your current balance or another user's balance")
                     .addUserOption((opt) =>
-                        opt.setName("user").setDescription("The user to check").setRequired(true),
+                        opt.setName("user").setDescription("The user to check").setRequired(false),
                     ),
             )
             .addSubcommand((sub) =>
@@ -129,15 +131,9 @@ export default {
                     .addStringOption((opt) =>
                         opt
                             .setName("item")
-                            .setDescription("The item you want to buy")
+                            .setDescription("The ID of the item you want to buy (e.g. 'vip_role')")
                             .setRequired(true)
-                            .addChoices(
-                                ...SHOP_ITEMS.map((item) => ({
-                                    name: `${item.name} ($${item.price})`,
-                                    value: item.id,
-                                })),
-                            ),
-                    ),
+                    )
             )
             .addSubcommand((sub) =>
                 sub.setName("inventory").setDescription("View items you currently own"),
@@ -234,7 +230,7 @@ async function handleBalance(interaction: ChatInputCommandInteraction) {
 
     const [profile] = await EconomyProfile.findOrCreate({
         where: { guildId: interaction.guildId!, userId: targetUser.id },
-        defaults: { guildId: interaction.guildId!, userId: targetUser.id, balance: 100 }
+        defaults: { guildId: interaction.guildId!, userId: targetUser.id, balance: STARTING_BALANCE }
     });
 
     const embed = new EmbedBuilder()
@@ -248,7 +244,9 @@ async function handleBalance(interaction: ChatInputCommandInteraction) {
 
 
 async function handleShop(interaction: ChatInputCommandInteraction) {
-    const items = await ShopItem.findAll({ where: { guildId: interaction.guildId! } });
+    const items = await ShopItem.findAll({
+        where: { guildId: interaction.guildId! }
+    });
 
     const embed = new EmbedBuilder()
         .setTitle("🛒 The Server Marketplace")
@@ -275,9 +273,8 @@ async function handleShop(interaction: ChatInputCommandInteraction) {
 }
 
 async function handleBuy(interaction: ChatInputCommandInteraction) {
-    const itemKey = interaction.options.getString("item_id", true).toLowerCase();
+    const itemKey = interaction.options.getString("item", true).toLowerCase();
 
-    // 👇 Fetch the specific item from the database
     const item = await ShopItem.findOne({
         where: { guildId: interaction.guildId!, itemId: itemKey }
     });
@@ -302,11 +299,15 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
         return;
     }
 
-    // ─── ADD THE ROLE LOGIC HERE ────────────────────────────────────────
-
     let roleGrantedMessage = "";
 
-    // Check if this item is configured to give a role
+    // ─── RESUME NORMAL INVENTORY & BALANCE SAVING ───────────────────────
+
+    if (item.stock > 0) {
+        item.stock -= 1;
+        await item.save();
+    }
+
     if (item.roleId) {
         if (interaction.member instanceof GuildMember) {
             try {
@@ -317,7 +318,7 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
                         ephemeral: true
                     });
                 }
-
+                profile.balance -= item.price;
                 // Give them the role
                 await interaction.member.roles.add(item.roleId, `Purchased ${item.name} from the shop.`);
                 roleGrantedMessage = ` and granted you the <@&${item.roleId}> role`;
@@ -331,15 +332,6 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
             }
         }
     }
-
-    // ─── RESUME NORMAL INVENTORY & BALANCE SAVING ───────────────────────
-
-    if (item.stock > 0) {
-        item.stock -= 1;
-        await item.save();
-    }
-    // Deduct money from account
-    profile.balance -= item.price;
     await profile.save();
 
     // Add item to inventory database
@@ -368,8 +360,13 @@ async function handleInventory(interaction: ChatInputCommandInteraction) {
         return;
     }
 
-    // Map database entries to their descriptive shop names
-    const itemManifest = Object.fromEntries(SHOP_ITEMS.map((i) => [i.id, i.name]));
+    // 👇 Fetch all shop items from the DB to figure out their display names
+    const allShopItems = await ShopItem.findAll({
+        where: { guildId: interaction.guildId! }
+    });
+
+    // 👇 Map database entries to their descriptive shop names dynamically
+    const itemManifest = Object.fromEntries(allShopItems.map((i) => [i.itemId, i.name]));
 
     const inventoryList = items
         .map((item) => {
@@ -388,7 +385,7 @@ async function handleInventory(interaction: ChatInputCommandInteraction) {
 
 async function handleAddMoney(interaction: ChatInputCommandInteraction) {
     // 👇 Your exact role-check logic (Replace "1234" with your real Staff role ID)
-    if (interaction.member instanceof GuildMember && !interaction.member.roles.cache.has("1262624821582364703")) {
+    if (interaction.member instanceof GuildMember && !interaction.member.roles.cache.has(config.economy.teamRole)) {
         return interaction.reply({
             content: "❌ You do not have the required staff role to grant currency.",
             ephemeral: true
@@ -398,10 +395,10 @@ async function handleAddMoney(interaction: ChatInputCommandInteraction) {
     const targetUser = interaction.options.getUser("user", true);
     const amount = interaction.options.getInteger("amount", true);
 
-    // Prevent staff from entering negative numbers to steal money
-    if (amount <= 0) {
+    // Prevent staff from entering negative and/or too big numbers to steal money
+    if (amount <= 0 || amount > 1000000) {
         return interaction.reply({
-            content: "❌ Please specify an amount greater than 0.",
+            content: "❌ Please use an integer smaller than 1,000,000 and bigger than 0",
             ephemeral: true
         });
     }
@@ -422,7 +419,7 @@ async function handleAddMoney(interaction: ChatInputCommandInteraction) {
 }
 async function handleSetBalance(interaction: ChatInputCommandInteraction) {
     // Your exact staff role protection check
-    if (interaction.member instanceof GuildMember && !interaction.member.roles.cache.has("1262624821582364703")) {
+    if (interaction.member instanceof GuildMember && !interaction.member.roles.cache.has(config.economy.teamRole)) {
         return interaction.reply({ content: "❌ Staff only.", ephemeral: true });
     }
 
@@ -447,7 +444,7 @@ async function handleSetBalance(interaction: ChatInputCommandInteraction) {
     });
 }
 async function handleAddShopItem(interaction: ChatInputCommandInteraction) {
-    if (interaction.member instanceof GuildMember && !interaction.member.roles.cache.has("1234")) {
+    if (interaction.member instanceof GuildMember && !interaction.member.roles.cache.has(config.economy.teamRole)) {
         return interaction.reply({ content: "❌ Staff only.", ephemeral: true });
     }
 
@@ -483,7 +480,7 @@ async function handleAddShopItem(interaction: ChatInputCommandInteraction) {
 
 async function handleRemoveShopItem(interaction: ChatInputCommandInteraction) {
     // Staff Check
-    if (interaction.member instanceof GuildMember && !interaction.member.roles.cache.has("1262624821582364703")) {
+    if (interaction.member instanceof GuildMember && !interaction.member.roles.cache.has(config.economy.teamRole)) {
         return interaction.reply({ content: "❌ Staff only.", ephemeral: true });
     }
 
@@ -568,21 +565,37 @@ async function handleGambleDice(interaction: ChatInputCommandInteraction) {
     }
 }
 
+// 👇 Track which channels currently have an active game running
+const activeRouletteChannels = new Set<string>();
+
 async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
+    // 👇 Guard: Prevent multiple tables in the same channel
+    if (activeRouletteChannels.has(interaction.channelId)) {
+        return interaction.reply({
+            content: "❌ There is already an active roulette table in this channel! Please wait for the current spin to finish.",
+            ephemeral: true
+        });
+    }
+
+    // Lock the channel
+    activeRouletteChannels.add(interaction.channelId);
+
     await interaction.reply({
         content: "🎡 **MULTIPLAYER ROULETTE IS OPEN!**\n\n" +
             "**Anyone** can jump in! Valid bets: `red`, `black`, `even`, `odd`, or a number `1` through `24`.\n" +
-            "**How to bet:** Type your bet and amount (e.g., `red 50`, `14 100`).\n" +
+            "**How to bet:** Type `bet <choice> <amount>` (e.g., `bet red 50`, `bet 14 100`).\n" +
             "**When ready:** Anyone can type `spin` to roll the wheel! (Auto-spins in 60s)."
     });
 
-    // 👇 1. Update the state to track WHO made the bet
     const bets: { userId: string; username: string; type: string; amount: number }[] = [];
-
-    // 👇 2. Change the filter to allow ANY human (ignore bots)
     const filter = (m: Message) => !m.author.bot;
-
     const channel = interaction.channel as TextChannel;
+    if (!interaction.channel || !interaction.channel.isTextBased()) {
+        return interaction.reply({
+            content: "❌ This command can only be played in standard text channels!",
+            ephemeral: true
+        });
+    }
     const collector = channel.createMessageCollector({ filter, time: 60000 });
 
     collector.on("collect", async (m) => {
@@ -593,11 +606,12 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
             return;
         }
 
+        // 👇 Guard: Force users to start their message with "bet" so innocent messages are ignored
         const args = input.split(" ");
-        if (args.length !== 2) return;
+        if (args.length !== 3 || args[0] !== "bet") return;
 
-        const betType = args[0];
-        const amount = parseInt(args[1]);
+        const betType = args[1];
+        const amount = parseInt(args[2]);
 
         if (isNaN(amount) || amount <= 0) return;
 
@@ -607,7 +621,6 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
 
         if (!validTextBets.includes(betType) && !isValidNumber) return;
 
-        // 👇 3. Fetch the profile of the person who TYPED the message (not just the host)
         const [profile] = await EconomyProfile.findOrCreate({
             where: { guildId: interaction.guildId!, userId: m.author.id },
             defaults: { guildId: interaction.guildId!, userId: m.author.id, balance: 100 }
@@ -623,12 +636,15 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
         profile.balance -= amount;
         await profile.save();
 
-        // Save the bet with their user ID and username
+        // Save the bet
         bets.push({ userId: m.author.id, username: m.author.username, type: betType, amount });
         m.react("✅").catch(() => null);
     });
 
     collector.on("end", async () => {
+        // 👇 Unlock the channel so a new game can be started
+        activeRouletteChannels.delete(interaction.channelId);
+
         if (bets.length === 0) {
             return interaction.followUp("⏳ The table closed because no bets were placed.");
         }
@@ -641,13 +657,16 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
         const rollParity = roll % 2 === 0 ? "even" : "odd";
         const colorEmoji = rollColor === "red" ? "🔴" : "⚫";
 
-        // Track total winnings per user for a clean summary
-        const playerResults: Record<string, { username: string, totalWon: number, summary: string }> = {};
+        // 👇 Track total winnings AND total bets for the net profit math
+        const playerResults: Record<string, { username: string, totalWon: number, totalBet: number, summary: string }> = {};
 
         for (const bet of bets) {
             if (!playerResults[bet.userId]) {
-                playerResults[bet.userId] = { username: bet.username, totalWon: 0, summary: "" };
+                playerResults[bet.userId] = { username: bet.username, totalWon: 0, totalBet: 0, summary: "" };
             }
+
+            // Accumulate everything they spent
+            playerResults[bet.userId].totalBet += bet.amount;
 
             let won = false;
             let multiplier = 0;
@@ -665,7 +684,6 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
             }
         }
 
-        // Process payouts and build the final message
         let finalMessage = `### The wheel landed on **${roll} ${rollColor.toUpperCase()}** ${colorEmoji}!\n\n`;
 
         for (const [userId, result] of Object.entries(playerResults)) {
@@ -678,15 +696,41 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
                 await profile.save();
             }
 
+            // 👇 Calculate actual Net Profit
+            const netProfit = result.totalWon - result.totalBet;
+
             finalMessage += `**${result.username}**:\n${result.summary}`;
-            if (result.totalWon > 0) {
-                finalMessage += `💰 *Total Payout: $${result.totalWon}*\n`;
+
+            if (netProfit > 0) {
+                finalMessage += `📈 *Net Profit: +$${netProfit}*\n`;
+            } else if (netProfit < 0) {
+                finalMessage += `📉 *Net Loss: -$${Math.abs(netProfit)}*\n`;
             } else {
-                finalMessage += `💸 *Bust!*\n`;
+                finalMessage += `⚖️ *Broke Even!*\n`;
             }
             finalMessage += `\n`;
         }
 
         await interaction.followUp({ content: finalMessage });
     });
+}
+
+async function seedDefaultShopItems(guildId: string) {
+    for (const item of config.economy.shopItems) {
+        await ShopItem.findOrCreate({
+            // It searches the DB to see if this specific guild already has an item with this name
+            where: { guildId: guildId, name: item.name },
+
+            // If it doesn't exist, it creates it using the data from config.json
+            defaults: {
+                guildId: guildId,
+                itemId: item.itemId,
+                name: item.name,
+                price: item.price,
+                description: item.description,
+                roleId: item.roleId || null,
+                stock: item.stock
+                }
+        });
+    }
 }

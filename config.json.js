@@ -161,6 +161,18 @@ Consider donating to one of the following people:
     banTag: "1406738115468722257",
     bypassId: "1257750834150637599"
   },
+  economy:{
+    shopItems:[
+      { itemId: "super_role",
+        name: "Beta Access",
+        price: 2500,
+        description: "Purchase for access to beta builds!",
+        roleId: "1510652320432521327",
+        stock: -1
+      }
+    ],
+    teamRole: "1262624821582364703"
+  },
   wikisearch: {
     baseUrl: "https://amblelabs.dev/wiki",
     index: "/api/search",

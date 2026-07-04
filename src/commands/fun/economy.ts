@@ -295,23 +295,22 @@ export default {
 // ── SUBCOMMAND HANDLERS ──────────────────────────────────────────────────
 
 async function handleBalance(interaction: ChatInputCommandInteraction) {
-    await interaction.deferReply({ ephemeral: true });
+    // 1. Check if they pinged a specific user to look at, otherwise default to themselves
     const targetUser = interaction.options.getUser("user") || interaction.user;
 
-    const [profile] = await EconomyProfile.findOrCreate({
-        where: { guildId: interaction.guildId!, userId: targetUser.id },
-        defaults: { guildId: interaction.guildId!, userId: targetUser.id, balance: STARTING_BALANCE }
-    });
+    // 👇 2. Put the line right here!
+    // We look up the targetUser's ID in this specific server.
+    const balance = (await EconomyProfile.findOne({
+        where: {
+            guildId: interaction.guildId!,
+            userId: targetUser.id
+        }
+    }))?.balance ?? STARTING_BALANCE;
 
-    const embed = new EmbedBuilder()
-        .setTitle(`${targetUser.username}'s Vault`)
-        .setDescription(`💵 **Balance:** \`$${profile.balance}\``)
-        .setColor(0x00ae86)
-        .setThumbnail(targetUser.displayAvatarURL());
-
-
-    await interaction.editReply({
-        embeds: [embed]
+    // 3. Send the message back to the chat
+    await interaction.reply({
+        content: `💰 <@${targetUser.id}> currently has **$${balance}**.`,
+        ephemeral: true
     });
 }
 
@@ -829,7 +828,7 @@ async function seedDefaultShopItems(guildId: string) {
 }
 
 async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
-    await interaction.deferReply();
+    await interaction.deferReply({ ephemeral: true });
 
     const PAGE_SIZE = 10;
     let currentPage = 1;
@@ -858,17 +857,10 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
             offset: offset
         });
         // Instead of waiting for User 1, then User 2, we use Promise.all to fetch all 20 concurrently.
-        const formatPromises = topProfiles.map(async (profile) => {
+        const descriptionLines = topProfiles.map((profile) => {
             // Extract the rank that the database calculated for us
             const rank = profile.get('rank') as number;
-
-            let username = "Unknown User";
-            try {
-                const user = await interaction.client.users.fetch(profile.userId);
-                username = user.username;
-            } catch {
-                username = "*Departed User*";
-            }
+            const userMention = `<@${profile.userId}>`;
 
             let rankEmoji = "🔹";
             if (rank === 1) rankEmoji = "🥇";
@@ -876,11 +868,8 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
             else if (rank === 3) rankEmoji = "🥉";
             else rankEmoji = `**#${rank}**`;
 
-            return `${rankEmoji} ${username} — **$${profile.balance}**`;
+            return `${rankEmoji} ${userMention} — **$${profile.balance}**`;
         });
-
-        // Wait for all 20 formatting promises to finish, then join them with newlines
-        const descriptionLines = await Promise.all(formatPromises);
         const description = descriptionLines.join("\n") || "No players found.";
 
         return new EmbedBuilder()

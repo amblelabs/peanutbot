@@ -210,7 +210,7 @@ Consider donating to one of the following people:
     ],
     teamRole: ["1262624821582364703"],
     gambleChannel: ["1522846518829125642"],
-    addMoney: "{emoji} **Transaction Complete:** Successfully added `{added}` to {user}'s profile. Their new balance is `{newBalance}`.",
+    addMoney: "{emoji} **Transaction Complete:** Successfully added `{added}` to <@{user}>'s profile. Their new balance is `{newBalance}`.",
     coinEmoji: "<:al_logo:1492686347666980944>",
     cantAfford: "❌ You only have \\`${userBalance}\\`. You don't have enough money to bet!",
     isntStaff: "❌ You do not have a required staff role to use this command.",
@@ -235,7 +235,7 @@ Consider donating to one of the following people:
     limit: "❌ Please use an integer smaller than or equal to 1,000,000,000 and bigger than 0",
     setBalance:{
       invalid: "❌ Invalid amount range (0 to 2B).",
-      setTo: "⚙️ **Database Updated:** {username}'s balance has been explicitly set to \`${amount}\`."
+      setTo: "⚙️ **Database Updated:** <@{user}>'s balance has been explicitly set to \`${amount}\`."
     },
     betWin: "🎰 **JACKPOT!** The {thing} landed in your favor.\n{dice}\nYou won \`${betAmount}\`!\n{emoji} Your new balance is \`${balance}\`.",
     betLost: "📉 **Bust!** Lady Luck was not on your side today.\n{dice}\nYou lost \`${betAmount}\`.\n{emoji} Your remaining balance is \`${balance}\`."

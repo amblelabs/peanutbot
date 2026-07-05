@@ -588,7 +588,7 @@ async function handleInventory(interaction: ChatInputCommandInteraction) {
         return `${visualName} x\`${item.quantity}\``;
     }).join("\n");
 
-    const embed = new EmbedBuilder().setTitle(`🎒 ${interaction.user.username}'s Inventory`).setDescription(inventoryList).setColor(0x00ae86);
+    const embed = new EmbedBuilder().setTitle(`🎒 <@${interaction.user.id}>'s Inventory`).setDescription(inventoryList).setColor(0x00ae86);
     await interaction.editReply({ embeds: [embed] });
 }
 
@@ -658,7 +658,7 @@ async function handleAddMoney(interaction: ChatInputCommandInteraction) {
     const replyMessage = format(config.economy.addMoney, {
         emoji: config.economy.coinEmoji,
         added: formattedAmount,
-        user: targetUser.username,
+        user: targetUser.id,
         newBalance: formattedBalance
     });
 
@@ -678,7 +678,7 @@ async function handleSetBalance(interaction: ChatInputCommandInteraction) {
     profile.balance = amount;
     await profile.save();
 
-    await interaction.editReply({ content: format(config.economy.setBalance.setTo, {username: targetUser.username, amount: amount}) });
+    await interaction.editReply({ content: format(config.economy.setBalance.setTo, {user: targetUser.id, amount: amount}) });
 }
 
 async function handleGambleCoinflip(interaction: ChatInputCommandInteraction) {
@@ -741,11 +741,11 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
     const timeMs = customSeconds * 1000;
 
     const initialReply = await interaction.editReply({
-        content: `🎰 **${interaction.user.username}** opened a Roulette Table for **${customSeconds} seconds**! Join the thread below to place your bets.`
+        content: `🎰 **<@${interaction.user.id}>** opened a Roulette Table for **${customSeconds} seconds**! Join the thread below to place your bets.`
     });
 
     const thread = await initialReply.startThread({
-        name: `🎰 Roulette Table - ${interaction.user.username}`,
+        name: `🎰 Roulette Table - <@${interaction.user.id}>`,
         autoArchiveDuration: 60,
         reason: "Roulette Game Room"
     });

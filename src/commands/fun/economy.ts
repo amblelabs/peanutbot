@@ -184,13 +184,14 @@ export default {
                     .setName("buy")
                     .setDescription("Purchase an item from the shop")
                     .addStringOption((opt) => opt.setName("item").setDescription("The ID of the item you want to buy (e.g. 'vip_role')").setRequired(true))
+                    .addIntegerOption((opt) => opt.setName("quantity").setDescription("How many to buy?").setMinValue(1))
             )
             .addSubcommand((sub) =>
                 sub
                     .setName("use")
                     .setDescription("Use a consumable item from your inventory")
                     .addStringOption((opt) => opt.setName("item").setDescription("The ID of the item you want to use").setRequired(true))
-            )
+                   )
             .addSubcommand((sub) => sub.setName("inventory").setDescription("View items you currently own"))
             .addSubcommand((sub) =>
                 sub
@@ -252,7 +253,7 @@ export default {
             "wage": true,
             "leaderboard": true,
             "inventory": true,
-            "buy": true,
+            "buy": false,
             "add-money": true,
             "set-balance": true,
             "inflation": true,
@@ -454,20 +455,37 @@ async function handleShop(interaction: ChatInputCommandInteraction) {
 
 async function handleBuy(interaction: ChatInputCommandInteraction) {
     const itemKey = interaction.options.getString("item", true).toLowerCase();
-    const item = await ShopItem.findOne({ where: { guildId: interaction.guildId!, itemId: itemKey } });
+    // 1. Fetch the quantity option from the command (defaults to 1 if empty)
+    const quantity = interaction.options.getInteger("quantity") ?? 1;
 
-    if (!item) return void await interaction.editReply({ content: config.economy.notItem });
-    if (item.stock === 0) return void await interaction.editReply({ content: format(config.economy.soldOut, {name: item.name}) });
+    const item = await ShopItem.findOne({ where: { guildId: interaction.guildId!, itemId: itemKey } });
+    if (!item) return void await interaction.editReply({ content: config.economy.shop.notItem });
+
+    // 2. Check if the shop has enough stock for the requested quantity
+    if (item.stock !== -1 && item.stock < quantity) {
+        if (item.stock === 0) {
+            return void await interaction.editReply({ content: format(config.economy.shop.soldOut, {name: item.name}) });
+        }
+        return void await interaction.editReply({ content: format(config.economy.shop.notEnough, {stock: item.stock} )});
+    }
+
+    // 3. Safeguard: Prevent ordering multiples of items that immediately grant roles
+    if (item.roleId && quantity > 1) {
+        return void await interaction.editReply({ content: config.economy.shop.notMultiple });
+    }
 
     let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: interaction.user.id } });
     const currentBalance = profile?.balance ?? STARTING_BALANCE;
 
-    const shopErrorMessage = format(config.economy.shopCantAfford,{
-        name: item.name,
-        price: item.price,
+    // 4. Calculate total cost for the order
+    const totalCost = item.price * quantity;
+
+    const shopErrorMessage = format(config.economy.shop.cantAfford,{
+        name: quantity > 1 ? `${quantity}x ${item.name}` : item.name,
+        price: totalCost,
         balance: currentBalance,
     });
-    if (!(await hasSufficientFunds(interaction, currentBalance, item.price, shopErrorMessage))) return;
+    if (!(await hasSufficientFunds(interaction, currentBalance, totalCost, shopErrorMessage))) return;
 
     if (!profile) {
         profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: interaction.user.id, balance: STARTING_BALANCE });
@@ -475,17 +493,17 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
 
     let roleGrantedMessage = "";
 
+    // 5. Apply the correct stock deductions
     if (item.stock > 0) {
-        item.stock -= 1;
+        item.stock -= quantity;
         await item.save();
     }
-    profile.balance -= item.price;
+    profile.balance -= totalCost;
 
+    // 6. Role Assignment Logic (Safe because quantity is guaranteed to be 1 here)
     if (item.roleId && interaction.member instanceof GuildMember) {
         try {
             if (item.durationDays) {
-                // For testing, if your item config gives a small number (like seconds or milliseconds),
-                // make sure timeToAdd matches it. Assuming durationDays is days:
                 const timeToAdd = item.durationDays * 24 * 60 * 60 * 1000;
                 let tempRole = await TempRole.findOne({ where: { guildId: interaction.guildId!, userId: interaction.user.id, roleId: item.roleId } });
 
@@ -500,11 +518,10 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
                 }
 
                 await interaction.member.roles.add(item.roleId, `Purchased ${item.durationDays} day pass.`);
-                roleGrantedMessage = format(config.economy.tempRole, {roleId: item.roleId, durationDays: item.durationDays});
+                roleGrantedMessage = format(config.economy.shop.tempRole, {roleId: item.roleId, durationDays: item.durationDays});
 
-                // 🔥 INSTANT REMOVAL TIMER
-                // Calculates the remaining time dynamically and fires exactly when it hits 0
-                const msRemaining = item.durationDays * 24 * 60 * 60 * 1000; // Match your duration unit here
+                // INSTANT REMOVAL TIMER
+                const msRemaining = item.durationDays * 24 * 60 * 60 * 1000;
                 const memberRef = interaction.member;
                 const targetRoleId = item.roleId;
                 const targetGuildId = interaction.guildId!;
@@ -512,7 +529,6 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
 
                 setTimeout(async () => {
                     try {
-                        // Double check the DB to ensure they didn't buy an extension in the meantime
                         const currentRecord = await TempRole.findOne({ where: { guildId: targetGuildId, userId: targetUserId, roleId: targetRoleId } });
                         if (currentRecord && currentRecord.expiresAt <= new Date()) {
                             if (memberRef.roles.cache.has(targetRoleId)) {
@@ -527,10 +543,10 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
 
             } else {
                 if (interaction.member.roles.cache.has(item.roleId)) {
-                    return void await interaction.editReply({ content: `❌ You already have this permanent role!` });
+                    return void await interaction.editReply({ content: config.economy.shop.permRoleOwned });
                 }
                 await interaction.member.roles.add(item.roleId, `Purchased permanent role.`);
-                roleGrantedMessage = format(config.economy.permaRole, {roleId: item.roleId});
+                roleGrantedMessage = format(config.economy.shop.permaRole, {roleId: item.roleId});
             }
         } catch (error) {
             console.error("Failed to assign shop role:", error);
@@ -539,25 +555,30 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
 
     await profile.save();
 
+    // 7. Save the bulk amount into the inventory cleanly
     const [invItem, created] = await Inventory.findOrCreate({
         where: { guildId: interaction.guildId!, userId: interaction.user.id, itemKey },
-        defaults: { guildId: interaction.guildId!, userId: interaction.user.id, itemKey, quantity: 1 }
+        defaults: { guildId: interaction.guildId!, userId: interaction.user.id, itemKey, quantity: quantity }
     });
 
     if (!created) {
-        invItem.quantity += 1;
+        invItem.quantity += quantity;
         await invItem.save();
     }
 
-    await interaction.editReply({ content: format(config.economy.successBuy, {
-        name: item.name, price: item.price, message: roleGrantedMessage, balance: profile.balance
+    // 8. Inform the user with total price breakdown
+    await interaction.editReply({ content: format(config.economy.shop.successBuy, {
+            name: quantity > 1 ? `${quantity}x ${item.name}` : item.name,
+            price: totalCost,
+            message: roleGrantedMessage,
+            balance: profile.balance
         })
     });
 }
 
 async function handleInventory(interaction: ChatInputCommandInteraction) {
     const items = await Inventory.findAll({ where: { guildId: interaction.guildId!, userId: interaction.user.id } });
-    if (items.length === 0) return void await interaction.editReply({ content: "🎒 Your inventory is completely empty. Go buy something!" });
+    if (items.length === 0) return void await interaction.editReply({ content: config.economy.inv.empty });
 
     const allShopItems = await ShopItem.findAll({ where: { guildId: interaction.guildId! } });
     const itemManifest = Object.fromEntries(allShopItems.map((i) => [i.itemId, i.name]));
@@ -581,7 +602,7 @@ async function handleUse(interaction: ChatInputCommandInteraction) {
 
     if (!invItem || invItem.quantity <= 0) {
         return void await interaction.editReply({
-            content: `❌ You don't have any \`${itemKey}\` in your inventory! Buy one from the shop first.`
+            content: format(config.economy.inv.lack, {item: itemKey})
         });
     }
 
@@ -591,13 +612,13 @@ async function handleUse(interaction: ChatInputCommandInteraction) {
     });
 
     if (!shopItem) {
-        return void await interaction.editReply({ content: `❌ This item no longer exists in the server shop database.` });
+        return void await interaction.editReply({ content: config.economy.inv.nonexistent });
     }
 
     // 3. Check if it's actually a usable item
     if (!shopItem.useMessage) {
         return void await interaction.editReply({
-            content: `❌ The **${shopItem.name}** is not a consumable item. (If it's a role item, it was used automatically when you bought it!)`
+            content: format(config.economy.inv.nonconsumable, {name: shopItem.name})
         });
     }
 
@@ -614,7 +635,7 @@ async function handleUse(interaction: ChatInputCommandInteraction) {
     const customReply = shopItem.useMessage.replace(/{user}/g, `<@${interaction.user.id}>`);
 
     await interaction.editReply({
-        content: `📦 **${interaction.user.username}** used a **${shopItem.name}**!\n\n${customReply}`
+        content: `📦 **<&${interaction.user.id}>** used a **${shopItem.name}**!\n\n${customReply}`
     });
 }
 
@@ -872,6 +893,7 @@ async function seedDefaultShopItems(guildId: string) {
                 description: item.description,
                 roleId: item.roleId || null,
                 durationDays: item.durationDays || null,
+                useMessage: item.useMessage || null,
                 stock: item.stock
             }
         });

@@ -161,7 +161,7 @@ Consider donating to one of the following people:
     banTag: "1406738115468722257",
     bypassId: "1257750834150637599"
   },
-  "economy": {
+  economy: {
     currencyFormat: "{amount}$",
     shopItems: [
       {
@@ -191,6 +191,22 @@ Consider donating to one of the following people:
         durationDays: 30,
         stock: -1
       },
+      {
+        itemId: "weed",
+        name: "WEED",
+        price: 25,
+        description: "Purchase to smoke!",
+        useMessage: "You smoked the weed, feeling peace within",
+        stock: -1
+      },
+      {
+        itemId: "cigarette",
+        name: "cigarette",
+        price: 20,
+        description: "Purchase 500!",
+        useMessage: "The aroma is most pleasing",
+        stock: -1
+      },
     ],
     teamRole: ["1262624821582364703"],
     gambleChannel: ["1522846518829125642"],
@@ -199,12 +215,23 @@ Consider donating to one of the following people:
     cantAfford: "❌ You only have \\`${userBalance}\\`. You don't have enough money to bet!",
     isntStaff: "❌ You do not have a required staff role to use this command.",
     balanceMessage: "{emoji} <@{targetUser}> currently has **${balance}**.",
-    notItem: "That item doesn't exist in our shop.",
-    soldOut: "❌ Sorry, **${name}** is completely sold out!",
-    shopCantAfford: "`❌ You can't afford that! **{name}** costs \`${price}\`, but you only have \`${balance}\`.",
-    successBuy: "🎉 Successfully bought **{name}** for \`${price}\`{message}. Your remaining balance is \`$${balance}\`.",
-    permaRole: " and granted you the <@&{roleId}> role permanently!",
-    tempRole: ` and granted you the <@&{roleId}> role for **{durationDays} days**!`
+    shop:{
+      notItem: "That item doesn't exist in our shop.",
+      soldOut: "❌ Sorry, **${name}** is completely sold out!",
+      cantAfford: "`❌ You can't afford that! **{name}** costs \`${price}\`, but you only have \`${balance}\`.",
+      successBuy: "🎉 Successfully bought **{name}** for \`${price}\`{message}. Your remaining balance is \`$${balance}\`.",
+      permaRole: " and granted you the <@&{roleId}> role permanently!",
+      tempRole: ` and granted you the <@&{roleId}> role for **{durationDays} days**!`,
+      permRoleOwned: "❌ You already have this permanent role!",
+      notEnough: "❌ There are only **{stock}** of this item left in stock!",
+      notMultiple: "❌ You can only purchase one role-based pass at a time!"
+    },
+    inv:{
+      empty: "🎒 Your inventory is completely empty. Go buy something!",
+      lack: "❌ You don't have any \`{item}\` in your inventory! Buy one from the shop first.",
+      nonexistent: "❌ This item no longer exists in the server shop database.",
+      nonconsumable: "❌ The **{name}** is not a consumable item. (If it's a role item, it was used automatically when you bought it!)"
+    }
   },
   swear: {
     period: 60 * 1000,

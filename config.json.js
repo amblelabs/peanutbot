@@ -231,7 +231,14 @@ Consider donating to one of the following people:
       lack: "❌ You don't have any \`{item}\` in your inventory! Buy one from the shop first.",
       nonexistent: "❌ This item no longer exists in the server shop database.",
       nonconsumable: "❌ The **{name}** is not a consumable item. (If it's a role item, it was used automatically when you bought it!)"
-    }
+    },
+    limit: "❌ Please use an integer smaller than or equal to 1,000,000,000 and bigger than 0",
+    setBalance:{
+      invalid: "❌ Invalid amount range (0 to 2B).",
+      setTo: "⚙️ **Database Updated:** {username}'s balance has been explicitly set to \`${amount}\`."
+    },
+    betWin: "🎰 **JACKPOT!** The {thing} landed in your favor.\n{dice}\nYou won \`${betAmount}\`!\n{emoji} Your new balance is \`${balance}\`.",
+    betLost: "📉 **Bust!** Lady Luck was not on your side today.\n{dice}\nYou lost \`${betAmount}\`.\n{emoji} Your remaining balance is \`${balance}\`."
   },
   swear: {
     period: 60 * 1000,

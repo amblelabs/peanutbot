@@ -644,7 +644,7 @@ async function handleAddMoney(interaction: ChatInputCommandInteraction) {
     const targetUser = interaction.options.getUser("user", true);
     const amount = interaction.options.getInteger("amount", true);
 
-    if (amount <= 0 || amount > 1000000) return void await interaction.editReply({ content: "❌ Please use an integer smaller than or equal to 1,000,000 and bigger than 0" });
+    if (amount <= 0 || amount > 1000000000) return void await interaction.editReply({ content: config.economy.limit });
 
     let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: targetUser.id } });
     if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: targetUser.id, balance: STARTING_BALANCE });
@@ -670,7 +670,7 @@ async function handleSetBalance(interaction: ChatInputCommandInteraction) {
     const targetUser = interaction.options.getUser("user", true);
     const amount = interaction.options.getInteger("amount", true);
 
-    if (amount < 0 || amount > 2_000_000_000) return void await interaction.editReply({ content: "❌ Invalid amount range (0 to 2B)." });
+    if (amount < 0 || amount > 2_000_000_000) return void await interaction.editReply({ content: config.economy.setBalance.invalid });
 
     let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: targetUser.id } });
     if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: targetUser.id, balance: STARTING_BALANCE });
@@ -678,7 +678,7 @@ async function handleSetBalance(interaction: ChatInputCommandInteraction) {
     profile.balance = amount;
     await profile.save();
 
-    await interaction.editReply({ content: `⚙️ **Database Updated:** ${targetUser.username}'s balance has been explicitly set to \`$${amount}\`.` });
+    await interaction.editReply({ content: format(config.economy.setBalance.setTo, {username: targetUser.username, amount: amount}) });
 }
 
 async function handleGambleCoinflip(interaction: ChatInputCommandInteraction) {
@@ -695,11 +695,11 @@ async function handleGambleCoinflip(interaction: ChatInputCommandInteraction) {
     if (isWinner) {
         profile.balance += betAmount;
         await profile.save();
-        await interaction.editReply({ content: `🎰 **JACKPOT!** The coin landed in your favor. You won \`$${betAmount}\`!\n💰 Your new balance is \`$${profile.balance}\`.` });
+        await interaction.editReply({ content: format(config.economy.betWin, {thing: "coin", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: profile.balance, dice: ""}) });
     } else {
         profile.balance -= betAmount;
         await profile.save();
-        await interaction.editReply({ content: `📉 **Bust!** Lady Luck was not on your side today. You lost \`$${betAmount}\`.\n💸 Your remaining balance is \`$${profile.balance}\`.` });
+        await interaction.editReply({ content: format(config.economy.betLost, {dice: "", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: profile.balance}) });
     }
 }
 
@@ -720,11 +720,11 @@ async function handleGambleDice(interaction: ChatInputCommandInteraction) {
         const winnings = betAmount * 5;
         profile.balance += winnings;
         await profile.save();
-        await interaction.editReply({ content: `🎲 The die rolled a **${diceRoll}**!\n🎉 **INCREDIBLE!** You guessed correctly and won \`$${winnings}\`!\n💰 Your new balance is \`$${profile.balance}\`.` });
+        await interaction.editReply({ content: format(config.economy.betWin, {thing: "dice", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: profile.balance, dice: `It rolled a ${diceRoll}`}) });
     } else {
         profile.balance -= betAmount;
         await profile.save();
-        await interaction.editReply({ content: `🎲 The die rolled a **${diceRoll}**...\n📉 You guessed ${guess}. You lost your bet of \`$${betAmount}\`.\n💸 Your remaining balance is \`$${profile.balance}\`.` });
+        await interaction.editReply({ content: format(config.economy.betLost, {dice: `The dice rolled ${diceRoll} while you guessed ${guess}`, betAmount: betAmount, emoji: config.economy.coinEmoji, balance: profile.balance}) });
     }
 }
 
@@ -732,7 +732,7 @@ interface RouletteBet {
     userId: string;
     username: string;
     amount: number;
-    betType: "red" | "black" | "even" | "odd" | "number";
+    betType: "red" | "black" | "even" | "odd" | "number" | "green";
     betNumber?: number;
 }
 
@@ -755,9 +755,10 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
     await thread.send(
         `🎡 **Roulette Table Opened!** (Closes in ${customSeconds} seconds)\n\n` +
         `To enter, type your bet choice followed by your amount. **Example: \`red 250\`**\n` +
-        `• \`0-36 <amount>\` (36x payout)\n` +
-        `• \`red <amount>\` (2x payout)\n` +
-        `• \`black <amount>\` (2x payout)\n` +
+        `• \`0-36 <amount>\` (8x payout)\n` +
+        `• \`green <amount>\` (8x payout) 🟢\n` + // 👈 Added to instructions
+        `• \`red <amount>\` (2x payout) 🔴\n` +
+        `• \`black <amount>\` (2x payout) ⚫\n` +
         `• \`even <amount>\` (2x payout)\n` +
         `• \`odd <amount>\` (2x payout)\n\n` +
         `👍 _The bot will react with ✅ if your bet is accepted, or ❌ if something is wrong._\n` +
@@ -777,7 +778,8 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
             return;
         }
 
-        const validBetTypes = ["red", "black", "even", "odd"];
+        // 👈 Added "green" to the allowed string types here
+        const validBetTypes = ["red", "black", "even", "odd", "green"];
         const parsedNumber = parseInt(commandOrType, 10);
         const isNumberBet = !isNaN(parsedNumber) && parsedNumber >= 0 && parsedNumber <= 36;
 
@@ -798,7 +800,6 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
             profile.balance -= amount;
             await profile.save();
 
-            // Store the bet, assigning the betNumber if it's a number bet
             bets.push({
                 userId: message.author.id,
                 username: message.author.username,
@@ -837,8 +838,9 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
 
         for (const bet of bets) {
             let won = bet.betType === color || (bet.betType === "even" && isEven) || (bet.betType === "odd" && isOdd) || bet.betNumber === winningNumber;
-            // 2. Quick inline variables for payout and display
-            let payoutMultiplier = bet.betType === "number" ? 36 : 2;
+
+            // 👈 Update payout check so BOTH number bets and explicit "green" bets reward 36x payout
+            let payoutMultiplier = (bet.betType === "number" || bet.betType === "green") ? 36 : 2;
             let betDisplay = bet.betType === "number" ? `Number ${bet.betNumber}` : bet.betType;
 
             const profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: bet.userId } });
@@ -868,7 +870,6 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
             const netValue = userNetTotals.get(userId) ?? 0;
             let netStatus = "Broke Even!";
 
-            // 👇 Update the format() call to pass objects
             if (netValue > 0) netStatus = `Won Net ${format(config.economy.currencyFormat, { amount: netValue })}!`;
             else if (netValue < 0) netStatus = `Lost Net ${format(config.economy.currencyFormat, { amount: Math.abs(netValue) })}!`;
 

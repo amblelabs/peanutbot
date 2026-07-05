@@ -635,7 +635,7 @@ async function handleUse(interaction: ChatInputCommandInteraction) {
     const customReply = shopItem.useMessage.replace(/{user}/g, `<@${interaction.user.id}>`);
 
     await interaction.editReply({
-        content: `📦 **<&${interaction.user.id}>** used a **${shopItem.name}**!\n\n${customReply}`
+        content: `📦 **<@${interaction.user.id}>** used a **${shopItem.name}**!\n\n${customReply}`
     });
 }
 

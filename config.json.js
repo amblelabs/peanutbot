@@ -161,11 +161,20 @@ Consider donating to one of the following people:
     banTag: "1406738115468722257",
     bypassId: "1257750834150637599"
   },
-  economy: {
-    currencyFormat: "{0}$",
+  "economy": {
+    currencyFormat: "{amount}$",
     shopItems: [
       {
-        itemId: "beta_role",
+        itemId: "beta_role_3",
+        name: "Beta Access for 3 days",
+        price: 2500,
+        description: "Purchase for access to beta builds!",
+        roleId: "1510652320432521327",
+        durationDays: 3,
+        stock: -1
+      },
+      {
+        itemId: "beta_role_7",
         name: "Beta Access for 7 days",
         price: 2500,
         description: "Purchase for access to beta builds!",
@@ -173,11 +182,29 @@ Consider donating to one of the following people:
         durationDays: 7,
         stock: -1
       },
+      {
+        itemId: "beta_role_30",
+        name: "Beta Access for 30 days",
+        price: 2500,
+        description: "Purchase for access to beta builds!",
+        roleId: "1510652320432521327",
+        durationDays: 30,
+        stock: -1
+      },
     ],
     teamRole: ["1262624821582364703"],
     gambleChannel: ["1522846518829125642"],
-    addMoney: "{3} **Transaction Complete:** Successfully added `{0}` to {1}'s profile. Their new balance is `{2}`.",
-  coinEmoji:"<:al_logo:1492686347666980944>"
+    addMoney: "{emoji} **Transaction Complete:** Successfully added `{added}` to {user}'s profile. Their new balance is `{newBalance}`.",
+    coinEmoji: "<:al_logo:1492686347666980944>",
+    cantAfford: "❌ You only have \\`${userBalance}\\`. You don't have enough money to bet!",
+    isntStaff: "❌ You do not have a required staff role to use this command.",
+    balanceMessage: "{emoji} <@{targetUser}> currently has **${balance}**.",
+    notItem: "That item doesn't exist in our shop.",
+    soldOut: "❌ Sorry, **${name}** is completely sold out!",
+    shopCantAfford: "`❌ You can't afford that! **{name}** costs \`${price}\`, but you only have \`${balance}\`.",
+    successBuy: "🎉 Successfully bought **{name}** for \`${price}\`{message}. Your remaining balance is \`$${balance}\`.",
+    permaRole: " and granted you the <@&{roleId}> role permanently!",
+    tempRole: ` and granted you the <@&{roleId}> role for **{durationDays} days**!`
   },
   swear: {
     period: 60 * 1000,

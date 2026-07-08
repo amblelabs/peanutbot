@@ -167,7 +167,7 @@ Consider donating to one of the following people:
       {
         itemId: "beta_role_3",
         name: "Beta Access for 3 days",
-        price: 2500,
+        price: 500,
         description: "Purchase for access to beta builds!",
         roleId: "1510652320432521327",
         durationDays: 3,
@@ -176,7 +176,7 @@ Consider donating to one of the following people:
       {
         itemId: "beta_role_7",
         name: "Beta Access for 7 days",
-        price: 2500,
+        price: 1000,
         description: "Purchase for access to beta builds!",
         roleId: "1510652320432521327",
         durationDays: 7,

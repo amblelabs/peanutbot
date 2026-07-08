@@ -2,12 +2,7 @@ import {
     EmbedBuilder,
     ChatInputCommandInteraction,
     GuildMember,
-    Message,
-    type TextChannel,
-    ComponentType,
-    ButtonStyle,
-    ButtonBuilder,
-    ActionRowBuilder,
+    AutocompleteInteraction,
     MessageFlags
 } from "discord.js";
 import {
@@ -185,7 +180,7 @@ export default {
                 sub
                     .setName("buy")
                     .setDescription("Purchase an item from the shop")
-                    .addStringOption((opt) => opt.setName("item").setDescription("The ID of the item you want to buy (e.g. 'vip_role')").setRequired(true))
+                    .addStringOption((opt) => opt.setName("item").setDescription("The ID of the item you want to buy (e.g. 'vip_role')").setRequired(true).setAutocomplete(true))
                     .addIntegerOption((opt) => opt.setName("quantity").setDescription("How many to buy?").setMinValue(1))
             )
             .addSubcommand((sub) =>
@@ -248,6 +243,33 @@ export default {
     },
 
     onInteraction: async (ctx, interaction) => {
+        if (interaction.isAutocomplete()) {
+            if (!interaction.guildId) return void await interaction.respond([]);
+
+            const sub = interaction.options.getSubcommand(false);
+            if (sub === "buy") {
+                const focusedValue = interaction.options.getFocused().toLowerCase();
+
+                // Fetch the active shop products for this server
+                const items = await ShopItem.findAll({ where: { guildId: interaction.guildId } });
+
+                // Filter choices against both item name and itemId configurations
+                const filtered = items.filter(item =>
+                    item.name.toLowerCase().includes(focusedValue) ||
+                    item.itemId.toLowerCase().includes(focusedValue)
+                );
+
+                // Respond to Discord (capped at API maximum of 25 choices)
+                return void await interaction.respond(
+                    filtered.slice(0, 25).map(item => ({
+                        name: `${item.name} — $${item.price}`,
+                        value: item.itemId
+                    }))
+                );
+            }
+            return;
+        }
+
         if (!interaction.isChatInputCommand()) return;
 
         const EPHEMERAL_MAPPING: Record<string, boolean> = {

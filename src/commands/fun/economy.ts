@@ -267,7 +267,7 @@ export default {
                     }))
                 );
             }
-            void await interaction.respond([]);
+           return void await interaction.respond([]);
         }
 
         if (!interaction.isChatInputCommand()) return;

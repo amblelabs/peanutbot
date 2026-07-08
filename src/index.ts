@@ -201,11 +201,18 @@ ctx.client.on(Events.InteractionCreate, async (interaction) => {
 
   ctx.lastUse = Date.now();
 
+  // Handle Autocomplete interactions upfront and return early so they never fall through to chat command logic
+  if (interaction.isAutocomplete()) {
+    let handler = handlers[interaction.commandName];
+    if (handler?.onInteraction) handler.onInteraction(ctx, interaction);
+    return;
+  }
+
   let handlerId: string | undefined;
   if (interaction.isButton() || interaction.isModalSubmit()) {
     const ic = interaction.customId.indexOf(":");
     handlerId = interaction.customId.substring(0, ic);
-  } else if (interaction.isChatInputCommand() || interaction.isAutocomplete()) {
+  } else if (interaction.isChatInputCommand()) {
     handlerId = interaction.commandName;
   }
 

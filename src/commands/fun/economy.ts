@@ -267,7 +267,7 @@ export default {
                     }))
                 );
             }
-            return;
+            void await interaction.respond([]);
         }
 
         if (!interaction.isChatInputCommand()) return;
@@ -967,7 +967,7 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
         });
     }
 
-    const USERS_PER_PAGE = 4;
+    const USERS_PER_PAGE = 10;
     const pages: EmbedBuilder[] = [];
     const totalPages = Math.ceil(profiles.length / USERS_PER_PAGE);
 

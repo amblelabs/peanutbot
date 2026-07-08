@@ -20,8 +20,10 @@ import {
 } from "sequelize";
 import type { Cmd } from "~/util/base";
 import { format } from "~/util/base";
-import randomUtils from "~/util/rnd";
+import rnd from "~/util/rnd";
 import config from "config.json";
+import { randomInt } from "crypto";
+import { paginate } from "../../util/paginator2.ts";
 
 // 2. Define the Database Models
 export class EconomyProfile extends Model<
@@ -250,9 +252,9 @@ export default {
 
         const EPHEMERAL_MAPPING: Record<string, boolean> = {
             "balance": true,
-            "wage": true,
             "leaderboard": true,
             "inventory": true,
+            "wage": true,
             "buy": false,
             "add-money": true,
             "set-balance": true,
@@ -307,9 +309,9 @@ export default {
             case null:
             default: {
                 switch (sub) {
-                    case "wage": return await handleWage(interaction);
                     case "inflation": return await handleInflation(interaction);
                     case "leaderboard": return await handleLeaderboard(interaction);
+                    case "wage": return await handleWage(interaction)
                     case "balance": return await handleBalance(interaction);
                     case "shop": return await handleShop(interaction);
                     case "buy": return await handleBuy(interaction);
@@ -340,6 +342,24 @@ async function hasSufficientFunds(
     return true;
 }
 
+function calculateWage(member: GuildMember): number {
+    const wageConfig = config.economy.wages;
+
+    // 1. Start with an array containing just the baseline default wage
+    const matchingSalaries: number[] = [wageConfig.defaultAmount];
+
+    // 2. Map through the config roles. If the member has the role, push its salary to the array
+    for (const [roleId, salary] of Object.entries(wageConfig.roleSalaries)) {
+        if (member.roles.cache.has(roleId)) {
+            matchingSalaries.push(salary as number);
+        }
+    }
+
+    // 3. Return the absolute highest value found.
+    // If they have no special roles, Math.max(100) safely returns 100!
+    return Math.max(...matchingSalaries);
+}
+
 /**
  * Checks if the user has a required staff role. If not, it replies with an error and returns false.
  */
@@ -358,31 +378,41 @@ async function hasStaffPermission(interaction: ChatInputCommandInteraction): Pro
 // ── SUBCOMMAND HANDLERS ──────────────────────────────────────────────────
 
 async function handleWage(interaction: ChatInputCommandInteraction) {
-    let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: interaction.user.id } });
+    if (!interaction.inCachedGuild()) return;
+
+    let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId, userId: interaction.user.id } });
+    if (!profile) {
+        profile = await EconomyProfile.create({ guildId: interaction.guildId, userId: interaction.user.id, balance: STARTING_BALANCE });
+    }
+
     const now = new Date();
+    const cooldownMs = WAGE_COOLDOWN_HOURS * 60 * 60 * 1000;
 
-    if (profile && profile.lastWageClaim) {
-        const diffMs = now.getTime() - profile.lastWageClaim.getTime();
-        const diffHours = diffMs / (1000 * 60 * 60);
-
-        if (diffHours < WAGE_COOLDOWN_HOURS) {
-            const remainingHours = Math.ceil(WAGE_COOLDOWN_HOURS - diffHours);
+    // 1. Check Cooldown
+    if (profile.lastWageClaim) {
+        const timeSinceLastClaim = now.getTime() - profile.lastWageClaim.getTime();
+        if (timeSinceLastClaim < cooldownMs) {
+            const remainingMs = cooldownMs - timeSinceLastClaim;
+            const remainingHours = (remainingMs / (1000 * 60 * 60)).toFixed(1);
             return void await interaction.editReply({
-                content: `⏳ You have already collected your wage recently! Come back in **${remainingHours} hours**.`
+                content: `⏳ You are still on cooldown! Please wait **${remainingHours} hours** before claiming your next wage.`
             });
         }
     }
 
-    if (!profile) {
-        profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: interaction.user.id, balance: STARTING_BALANCE });
-    }
+    // 2. THIS IS WHERE calculateWage IS USED! 🚀
+    const salaryAmount = calculateWage(interaction.member);
 
-    profile.balance += WAGE_AMOUNT;
+    // 3. Apply the money and reset the cooldown timer
+    profile.balance += salaryAmount;
     profile.lastWageClaim = now;
     await profile.save();
 
+    const formattedSalary = format(config.economy.currencyFormat, { amount: salaryAmount });
+    const formattedBalance = format(config.economy.currencyFormat, { amount: profile.balance });
+
     await interaction.editReply({
-        content: `💵 You clocked in and collected your wage of **$${WAGE_AMOUNT}**! Your new balance is **$${profile.balance}**.`
+        content: `💵 You worked a hard shift and claimed your wage of **${formattedSalary}**!\n🏦 **New Balance:** ${formattedBalance}`
     });
 }
 
@@ -690,9 +720,9 @@ async function handleGambleCoinflip(interaction: ChatInputCommandInteraction) {
 
     if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: interaction.user.id, balance: STARTING_BALANCE });
 
-    const isWinner = randomUtils.pickRandom([true, false]);
+    const isWinner = randomInt(0,2);
 
-    if (isWinner) {
+    if (isWinner == 1) {
         profile.balance += betAmount;
         await profile.save();
         await interaction.editReply({ content: format(config.economy.betWin, {thing: "coin", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: profile.balance, dice: ""}) });
@@ -714,7 +744,7 @@ async function handleGambleDice(interaction: ChatInputCommandInteraction) {
 
     if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: interaction.user.id, balance: STARTING_BALANCE });
 
-    const diceRoll = randomUtils.getRandomIntInclusive(1, 6);
+    const diceRoll = randomInt(1, 7);
 
     if (guess === diceRoll) {
         const winnings = betAmount * 5;
@@ -823,7 +853,8 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
             return;
         }
 
-        const winningNumber = Math.floor(Math.random() * 37);
+
+        const winningNumber = randomInt(0, 37);
         const redNumbers = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
         let color: "green" | "red" | "black" = "green";
         if (winningNumber > 0) color = redNumbers.includes(winningNumber) ? "red" : "black";
@@ -902,68 +933,54 @@ async function seedDefaultShopItems(guildId: string) {
 }
 
 async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
-    const PAGE_SIZE = 10;
-    let currentPage = 1;
-
-    const actualCount = await EconomyProfile.count({ where: { guildId: interaction.guildId! } });
-    const totalProfiles = Math.min(actualCount, 100);
-    if (totalProfiles === 0) return void await interaction.editReply("📉 The economy is completely empty. Nobody has any money yet!");
-    const maxPage = Math.ceil(totalProfiles / PAGE_SIZE);
-
-    const generatePage = async (page: number) => {
-        const offset = (page - 1) * PAGE_SIZE;
-        const topProfiles = await EconomyProfile.findAll({
-            where: { guildId: interaction.guildId! },
-            attributes: { include: [[Sequelize.literal('(RANK() OVER (ORDER BY balance DESC))'), 'rank']] },
-            order: [['balance', 'DESC']], limit: PAGE_SIZE, offset: offset
-        });
-
-        const descriptionLines = topProfiles.map((profile) => {
-            const rank = profile.get('rank') as number;
-            const userMention = `<@${profile.userId}>`;
-            let rankEmoji = "🔹";
-            if (rank === 1) rankEmoji = "🥇";
-            else if (rank === 2) rankEmoji = "🥈";
-            else if (rank === 3) rankEmoji = "🥉";
-            else rankEmoji = `**#${rank}**`;
-            return `${rankEmoji} ${userMention} — **$${profile.balance}**`;
-        });
-
-        return new EmbedBuilder()
-            .setTitle("🏆 Economy Leaderboard")
-            .setDescription(descriptionLines.join("\n") || "No players found.")
-            .setColor(0xFFD700)
-            .setFooter({ text: `Page ${page} of ${maxPage} | Total Players: ${totalProfiles}` });
-    };
-
-    const generateButtons = (page: number) => {
-        const row = new ActionRowBuilder<ButtonBuilder>();
-        row.addComponents(
-            new ButtonBuilder().setCustomId('economy:prev_page').setLabel('◀ Previous').setStyle(ButtonStyle.Primary).setDisabled(page === 1),
-            new ButtonBuilder().setCustomId('economy:next_page').setLabel('Next ▶').setStyle(ButtonStyle.Primary).setDisabled(page === maxPage)
-        );
-        return row;
-    };
-
-    const initialEmbed = await generatePage(currentPage);
-    const components = maxPage > 1 ? [generateButtons(currentPage)] : [];
-
-    const message = await interaction.editReply({ embeds: [initialEmbed], components: components });
-    if (maxPage <= 1) return;
-
-    const collector = message.createMessageComponentCollector({ componentType: ComponentType.Button, time: 60000 });
-
-    collector.on("collect", async (i) => {
-        await i.deferUpdate();
-        if (i.customId === 'economy:prev_page') currentPage--;
-        if (i.customId === 'economy:next_page') currentPage++;
-
-        await i.editReply({ embeds: [await generatePage(currentPage)], components: [generateButtons(currentPage)] });
+    // 1. Fetch all profiles in the current guild, sorted by balance descending
+    const profiles = await EconomyProfile.findAll({
+        where: { guildId: interaction.guildId! },
+        order: [["balance", "DESC"]]
     });
 
-    collector.on("end", async () => {
-        const disabledRow = generateButtons(currentPage);
-        disabledRow.components.forEach(c => c.setDisabled(true));
-        await interaction.editReply({ components: [disabledRow] }).catch(() => null);
-    });
+    if (profiles.length === 0) {
+        return void await interaction.editReply({
+            content: "📉 The leaderboard is currently empty! No one has a bank account yet."
+        });
+    }
+
+    const USERS_PER_PAGE = 4;
+    const pages: EmbedBuilder[] = [];
+    const totalPages = Math.ceil(profiles.length / USERS_PER_PAGE);
+
+    // 2. Loop through profiles and slice them into chunks of 10
+    for (let i = 0; i < profiles.length; i += USERS_PER_PAGE) {
+        const chunk = profiles.slice(i, i + USERS_PER_PAGE);
+        const currentPage = Math.floor(i / USERS_PER_PAGE) + 1;
+
+        const embed = new EmbedBuilder()
+            .setTitle(`🏆 ${interaction.guild?.name || "Server"} Wealth Leaderboard`)
+            .setColor("#F1C40F") // Clean Gold Color
+            .setTimestamp();
+
+        let description = "";
+
+        // 3. Build the text rows for the current page chunk
+        chunk.forEach((profile, index) => {
+            const globalRank = i + index + 1;
+            let rankDisplay = `**#${globalRank}**`;
+
+            // Style up the top 3 with shiny medals
+            if (globalRank === 1) rankDisplay = "🥇";
+            else if (globalRank === 2) rankDisplay = "🥈";
+            else if (globalRank === 3) rankDisplay = "🥉";
+
+            const formattedBalance = format(config.economy.currencyFormat, { amount: profile.balance });
+            description += `${rankDisplay} <@${profile.userId}> — **${formattedBalance}**\n`;
+        });
+
+        embed.setDescription(description);
+        embed.setFooter({ text: `Page ${currentPage} of ${totalPages} • Total Players: ${profiles.length}` });
+
+        pages.push(embed);
+    }
+
+    // 4. Pass the array of embeds into your pagination utility!
+    await paginate(interaction, pages);
 }

@@ -192,14 +192,6 @@ Consider donating to one of the following people:
         stock: -1
       },
       {
-        itemId: "weed",
-        name: "WEED",
-        price: 25,
-        description: "Purchase to smoke!",
-        useMessage: "You smoked the weed, feeling peace within",
-        stock: -1
-      },
-      {
         itemId: "cigarette",
         name: "cigarette",
         price: 20,
@@ -238,7 +230,13 @@ Consider donating to one of the following people:
       setTo: "⚙️ **Database Updated:** <@{user}>'s balance has been explicitly set to \`${amount}\`."
     },
     betWin: "🎰 **JACKPOT!** The {thing} landed in your favor.\n{dice}\nYou won \`${betAmount}\`!\n{emoji} Your new balance is \`${balance}\`.",
-    betLost: "📉 **Bust!** Lady Luck was not on your side today.\n{dice}\nYou lost \`${betAmount}\`.\n{emoji} Your remaining balance is \`${balance}\`."
+    betLost: "📉 **Bust!** Lady Luck was not on your side today.\n{dice}\nYou lost \`${betAmount}\`.\n{emoji} Your remaining balance is \`${balance}\`.",
+    wages: {
+      defaultAmount: 0,
+      roleSalaries: {
+        "1262624821582364703": 500,
+      }
+    }
   },
   swear: {
     period: 60 * 1000,

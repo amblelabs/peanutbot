@@ -1,6 +1,6 @@
 export default {
   guildId: ["1213989169878274068"],
-  clientId: "1520481807458504774",
+  clientId: "1287095017596387500",
   logging: "debug",
   welcome: {
     channel: "1213989170964340878",

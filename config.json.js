@@ -1,6 +1,6 @@
 export default {
   guildId: ["1213989169878274068"],
-  clientId: "1287095017596387500",
+  clientId: "1520481807458504774",
   logging: "debug",
   welcome: {
     channel: "1213989170964340878",
@@ -191,12 +191,12 @@ Consider donating to one of the following people:
         stock: -1
       },
       {
-        itemId: "cigarette",
-        name: "cigarette",
+        itemId: "candy",
+        name: "candy",
         price: 20,
-        description: "Purchase 500!",
-        useMessage: "The aroma is most pleasing",
-        stock: -1
+        description: "Purchase many!",
+        useMessage: "The taste is most pleasing",
+        stock: 20
       },
     ],
     teamRole: ["1262624821582364703"],

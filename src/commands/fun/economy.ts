@@ -1,9 +1,15 @@
 import {
+    ButtonBuilder,
     EmbedBuilder,
     ChatInputCommandInteraction,
     GuildMember,
-    AutocompleteInteraction,
-    MessageFlags
+    MessageFlags,
+    ButtonStyle,
+    ComponentType,
+    ContainerBuilder,
+    TextDisplayBuilder,
+    SeparatorBuilder,
+    SectionBuilder, PermissionFlagsBits
 } from "discord.js";
 import {
     DataTypes,
@@ -71,7 +77,6 @@ export class TempRole extends Model<InferAttributes<TempRole>, InferCreationAttr
     declare expiresAt: Date;
 }
 const STARTING_BALANCE = 10;
-const WAGE_AMOUNT = 50;
 const WAGE_COOLDOWN_HOURS = 24;
 
 export default {
@@ -187,8 +192,24 @@ export default {
                 sub
                     .setName("use")
                     .setDescription("Use a consumable item from your inventory")
-                    .addStringOption((opt) => opt.setName("item").setDescription("The ID of the item you want to use").setRequired(true))
+                    .addStringOption((opt) => opt.setName("item").setDescription("The ID of the item you want to use").setRequired(true).setAutocomplete(true))
                    )
+            .addSubcommand((sub) =>
+                sub
+                    .setName("refill")
+                    .setDescription("Refill the stock of a specific shop item.")
+                    .addStringOption(option =>
+                        option.setName("item")
+                            .setDescription("The ID of the item to refill")
+                            .setRequired(true)
+                            .setAutocomplete(true)
+                    )
+                    .addIntegerOption(option =>
+                        option.setName("amount")
+                            .setDescription("How much stock to add")
+                            .setRequired(true)
+                )
+            )
             .addSubcommand((sub) => sub.setName("inventory").setDescription("View items you currently own"))
             .addSubcommand((sub) =>
                 sub
@@ -247,19 +268,17 @@ export default {
             if (!interaction.guildId) return void await interaction.respond([]);
 
             const sub = interaction.options.getSubcommand(false);
-            if (sub === "buy") {
-                const focusedValue = interaction.options.getFocused().toLowerCase();
+            const focusedValue = interaction.options.getFocused().toLowerCase();
 
-                // Fetch the active shop products for this server
+            // 1. Autocomplete for Shop Items (Buy & Refill)
+            if (sub === "buy" || sub === "refill") {
                 const items = await ShopItem.findAll({ where: { guildId: interaction.guildId } });
 
-                // Filter choices against both item name and itemId configurations
                 const filtered = items.filter(item =>
                     item.name.toLowerCase().includes(focusedValue) ||
                     item.itemId.toLowerCase().includes(focusedValue)
                 );
 
-                // Respond to Discord (capped at API maximum of 25 choices)
                 return void await interaction.respond(
                     filtered.slice(0, 25).map(item => ({
                         name: `${item.name} — $${item.price}`,
@@ -267,7 +286,35 @@ export default {
                     }))
                 );
             }
-           return void await interaction.respond([]);
+
+            // 2. Autocomplete for Inventory Items (Use)
+            if (sub === "use") {
+                // Fetch only items the user actually owns
+                const inventory = await Inventory.findAll({
+                    where: { guildId: interaction.guildId, userId: interaction.user.id }
+                });
+
+                // Fetch shop items to map the nice visual names
+                const shopItems = await ShopItem.findAll({ where: { guildId: interaction.guildId } });
+                const itemManifest = Object.fromEntries(shopItems.map(i => [i.itemId, i.name]));
+
+                const filtered = inventory.filter(inv => {
+                    const name = itemManifest[inv.itemKey] || inv.itemKey;
+                    return name.toLowerCase().includes(focusedValue) || inv.itemKey.toLowerCase().includes(focusedValue);
+                });
+
+                return void await interaction.respond(
+                    filtered.slice(0, 25).map(inv => {
+                        const name = itemManifest[inv.itemKey] || inv.itemKey;
+                        return {
+                            name: `${name} (Owned: ${inv.quantity})`,
+                            value: inv.itemKey
+                        };
+                    })
+                );
+            }
+
+            return void await interaction.respond([]);
         }
 
         if (!interaction.isChatInputCommand()) return;
@@ -281,6 +328,7 @@ export default {
             "add-money": true,
             "set-balance": true,
             "inflation": true,
+            "refill": true,
 
             // Set these to false so they are wide open to the public channel
             "shop": false,
@@ -341,6 +389,7 @@ export default {
                     case "inventory": return await handleInventory(interaction);
                     case "add-money": return await handleAddMoney(interaction);
                     case "set-balance": return await handleSetBalance(interaction);
+                    case "refill": return await handleRefillStock(interaction)
                 }
                 return;
             }
@@ -440,8 +489,9 @@ async function handleInflation(interaction: ChatInputCommandInteraction) {
 
     const percentage = interaction.options.getNumber("percentage", true);
 
-    if (percentage <= 0) {
-        return void await interaction.editReply({ content: "❌ Please provide a percentage greater than 0." });
+    const multiplier = 1 + (percentage / 100);
+    if (multiplier <= 0) {
+        return void await interaction.editReply({ content: "❌ Please provide a percentage higher/lower than -/+ 100%" });
     }
 
     const items = await ShopItem.findAll({ where: { guildId: interaction.guildId! } });
@@ -450,15 +500,16 @@ async function handleInflation(interaction: ChatInputCommandInteraction) {
         return void await interaction.editReply({ content: "❌ There are no items in the shop to inflate." });
     }
 
-    const multiplier = 1 + (percentage / 100);
 
     for (const item of items) {
         item.price = Math.round(item.price * multiplier);
+        if (item.price < 1) item.price = 1;
         await item.save();
     }
-
+    const trendEmoji = percentage > 0 ? "📈" : "📉";
+    const direction = percentage > 0 ? "increased" : "decreased";
     await interaction.editReply({
-        content: `📈 **Inflation Applied!** All shop items have been increased in price by **${percentage}%**.`
+        content:`${trendEmoji} **Economy Updated!** All shop prices have been ${direction} by **${Math.abs(percentage)}%** (Multiplier: \`${multiplier}x\`).`
     });
 }
 
@@ -479,27 +530,123 @@ async function handleBalance(interaction: ChatInputCommandInteraction) {
 
 async function handleShop(interaction: ChatInputCommandInteraction) {
     const items = await ShopItem.findAll({ where: { guildId: interaction.guildId! } });
-    const embed = new EmbedBuilder()
-        .setTitle("🛒 The Server Shop")
-        .setDescription("Use `/economy buy <item_id>` to purchase something!")
-        .setColor(0x00ae86);
 
     if (items.length === 0) {
-        embed.setDescription("The shop is currently empty. Admins need to add items!");
-    } else {
-        for (const item of items) {
-            let stockDisplay = item.stock === -1 ? "∞" : item.stock.toString();
-            if (item.stock === 0) stockDisplay = "❌ OUT OF STOCK";
-
-            embed.addFields({
-                name: `${item.name} (\`${item.itemId}\`) — $${item.price}`,
-                value: `${item.description}\n📦 **Stock:** ${stockDisplay}`,
-                inline: false,
-            });
-        }
+        const emptyContainer = new ContainerBuilder()
+            .setAccentColor(0xd9534f)
+            .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent("🛒 **The Server Shop**\nThe shop is currently empty.")
+            );
+        return void await interaction.reply({
+            components: [emptyContainer],
+            flags: [MessageFlags.IsComponentsV2] // <-- Crucial flag
+        });
     }
 
-    await interaction.editReply({ embeds: [embed] });
+    const containers: any[] = [];
+
+    // 2. Initialize the first layout container with a header title
+    let currentContainer = new ContainerBuilder()
+        .setAccentColor(0x00ae86) // This creates that clean colored bar on the left
+        .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent("🛒 **The Server Shop**\nClick the price button next to an item to purchase it instantly!")
+        )
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true));
+
+    // Track component slots (Discord limits a single Container to 10 sub-components max)
+    let componentCount = 2; // Title + initial Divider line
+
+    for (const item of items) {
+        let stockDisplay = item.stock === -1 ? "∞" : item.stock.toString();
+        const isOutOfStock = item.stock === 0;
+        if (isOutOfStock) stockDisplay = "❌ OUT OF STOCK";
+
+        // 3. Build a text section for the item name and description
+        const section = new SectionBuilder()
+            .addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(`### ${item.name}`),
+                new TextDisplayBuilder().setContent(`${item.description}\n📦 **Stock:** ${stockDisplay}`)
+            );
+
+        // 4. Create the button that will snap cleanly to the right side of the text
+        const button = new ButtonBuilder()
+            .setCustomId(`shop_buy_${item.itemId}`)
+            .setLabel(isOutOfStock ? "Sold Out" : `${item.price.toLocaleString()}$`)
+            .setEmoji(config.economy.coinEmoji)
+            .setStyle(isOutOfStock ? ButtonStyle.Danger : ButtonStyle.Success)
+            .setDisabled(isOutOfStock);
+
+        // Pin the button to this specific text block as an accessory layout
+        section.setButtonAccessory(button);
+
+        // Create a horizontal layout dividing line
+        const separator = new SeparatorBuilder().setDivider(true);
+
+        // Each item consumes 2 slots (1 Section + 1 Separator line)
+        // If it crosses the 10-component container limit, split it cleanly into a new side-bar panel
+        if (componentCount + 2 > 10) {
+            containers.push(currentContainer);
+            currentContainer = new ContainerBuilder().setAccentColor(0x00ae86);
+            componentCount = 0;
+        }
+
+        currentContainer.addSectionComponents(section);
+        currentContainer.addSeparatorComponents(separator);
+        componentCount += 2;
+    }
+
+    if (componentCount > 0) {
+        containers.push(currentContainer);
+    }
+
+    // 5. Send the UI layout to the user
+    const shopMessage = await interaction.editReply({
+        components: containers,
+        flags: [MessageFlags.IsComponentsV2],
+    });
+
+    // 6. Hook up the collector to your existing handleBuy method
+    const collector = shopMessage.createMessageComponentCollector({
+        componentType: ComponentType.Button,
+        time: 120_000 // Menu stays live for 2 minutes
+    });
+
+    collector.on("collect", async (buttonInteraction) => {
+        const itemId = buttonInteraction.customId.replace("shop_buy_", "");
+
+        await buttonInteraction.deferReply({ ephemeral: true });
+
+        // Build the slash-command runtime mock environment
+        const buyShim = Object.create(buttonInteraction);
+        buyShim.options = {
+            getString: (name: string) => name === "item" ? itemId : null,
+            getInteger: (name: string) => name === "quantity" ? 1 : null
+        };
+
+        // Pipe directly into your primary database purchase functions
+        await handleBuy(buyShim as unknown as ChatInputCommandInteraction);
+    });
+
+    // 7. Lock down the interactive elements when the browsing session ends
+    collector.on("end", async () => {
+        try {
+            const disabledComponents = containers.map(container => {
+                const json = container.toJSON();
+                if (json.components) {
+                    json.components.forEach((comp: any) => {
+                        // Locate sections containing button accessories and mark them disabled
+                        if (comp.type === 9 && comp.accessory && comp.accessory.type === 2) {
+                            comp.accessory.disabled = true;
+                        }
+                    });
+                }
+                return json;
+            });
+            await interaction.editReply({ components: disabledComponents });
+        } catch {
+            // Failsafe in case a user deletes the menu manually
+        }
+    });
 }
 
 async function handleBuy(interaction: ChatInputCommandInteraction) {
@@ -1008,4 +1155,45 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
 
     // 4. Pass the array of embeds into your pagination utility![cite: 3]
     await paginate(interaction, pages);
+}
+
+async function handleRefillStock(interaction: ChatInputCommandInteraction) {
+    if (!(await hasStaffPermission(interaction))) return;
+    // 1. Fetch the required options from the command
+    const itemKey = interaction.options.getString("item", true).toLowerCase();
+    const amount = interaction.options.getInteger("amount", true);
+
+    // 2. Validate the amount
+    if (amount <= 0) {
+        return void await interaction.editReply({
+            content: "❌ You must specify a positive amount to refill."
+        });
+    }
+
+    // 3. Find the item in the database
+    const item = await ShopItem.findOne({
+        where: { guildId: interaction.guildId!, itemId: itemKey }
+    });
+
+    if (!item) {
+        return void await interaction.editReply({
+            content: `❌ Could not find an item with the ID \`${itemKey}\` in the shop.`
+        });
+    }
+
+    // 4. Check if the item has infinite stock (-1)
+    if (item.stock === -1) {
+        return void await interaction.editReply({
+            content: `⚠️ **${item.name}** currently has infinite stock (∞), so it does not need to be refilled!`
+        });
+    }
+
+    // 5. Apply the stock addition and save
+    item.stock += amount;
+    await item.save();
+
+    // 6. Confirm the successful refill
+    await interaction.editReply({
+        content: `📦 Successfully added **${amount}** stock to **${item.name}**! The shop now has **${item.stock}** available.`
+    });
 }

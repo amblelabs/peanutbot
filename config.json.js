@@ -1,6 +1,6 @@
 export default {
   guildId: ["1213989169878274068"],
-  clientId: "1287095017596387500",
+  clientId: "1520481807458504774",
   logging: "debug",
   welcome: {
     channel: "1213989170964340878",
@@ -162,7 +162,6 @@ Consider donating to one of the following people:
     bypassId: "1257750834150637599"
   },
   economy: {
-    currencyFormat: "{amount}$",
     shopItems: [
       {
         itemId: "beta_role_3",
@@ -202,7 +201,7 @@ Consider donating to one of the following people:
     ],
     teamRole: ["1262624821582364703"],
     gambleChannel: ["1522846518829125642"],
-    addMoney: "{emoji} **Transaction Complete:** Successfully added `{added}` to <@{user}>'s profile. Their new balance is `{newBalance}`.",
+    addMoney: "{emoji} **Transaction Complete:** Successfully added `${added}` to <@{user}>'s profile. Their new balance is `${newBalance}`.",
     coinEmoji: "<:al_logo:1492686347666980944>",
     cantAfford: "❌ You only have \\`${userBalance}\\`. You don't have enough money to bet!",
     isntStaff: "❌ You do not have a required staff role to use this command.",
@@ -231,7 +230,33 @@ Consider donating to one of the following people:
     },
     betWin: "🎰 **JACKPOT!** The {thing} landed in your favor.\n{dice}\nYou won \`${betAmount}\`!\n{emoji} Your new balance is \`${balance}\`.",
     betLost: "📉 **Bust!** Lady Luck was not on your side today.\n{dice}\nYou lost \`${betAmount}\`.\n{emoji} Your remaining balance is \`${balance}\`.",
+    roulette: {
+      openMessage: "🎰 **<@{userId}>** opened a Roulette Table for **{seconds} seconds**! Join the thread below to place your bets.",
+      threadName: "🎰 Roulette Table - {username}",
+      guideMessage:
+          "🎡 **Roulette Table Opened!** (Closes in {seconds} seconds)\n\n" +
+          "To enter, type your bet choice followed by your amount. " +
+          "**Example: `red 250`**\n" +
+          "• `0-36 <amount>` (8x payout)\n" +
+          "• `green <amount>` (8x payout) 🟢\n" +
+          "• `red <amount>` (2x payout) 🔴\n" +
+          "• `black <amount>` (2x payout) ⚫\n" +
+          "• `even <amount>` (2x payout)\n" +
+          "• `odd <amount>` (2x payout)\n\n" +
+          " _The bot will react with ✅ if your bet is accepted, or ❌ if something is wrong._\n" +
+          "👑 **<@{userId}>**, type `spin` when everyone is ready!",
+      inactivityMessage: "⏰ Table closed automatically due to inactivity.",
+      spinningMessage: "✨ *The wheel is spinning...* ✨",
+      resultHeader: "🏁 **The wheel landed on {number} {color} {emoji} !**\n\n",
+      betWonLine: "{betDisplay}: Won {amount}",
+      betLostLine: "{betDisplay}: Lost {amount}",
+      brokeEven: "Broke Even!",
+      wonNet: "Won Net {amount}!",
+      lostNet: "Lost Net {amount}!",
+      userSummaryRow: "**{user}**:\n{breakdown}\n**{netStatus}**\n"
+    },
     wages: {
+      message: "{emoji} You worked a hard shift and claimed your wage of **${salary}**!\n🏦 **New Balance:** ${balance}",
       defaultAmount: 0,
       roleSalaries: {
         "1262624821582364703": 500,

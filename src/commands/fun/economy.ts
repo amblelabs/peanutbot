@@ -430,11 +430,8 @@ async function handleWage(interaction: ChatInputCommandInteraction) {
     profile.lastWageClaim = now;
     await profile.save();
 
-    const formattedSalary = format(config.economy.currencyFormat, { amount: salaryAmount });
-    const formattedBalance = format(config.economy.currencyFormat, { amount: profile.balance });
-
     await interaction.editReply({
-        content: `💵 You worked a hard shift and claimed your wage of **${formattedSalary}**!\n🏦 **New Balance:** ${formattedBalance}`
+        content: format(config.economy.wages.message, {emoji: config.economy.coinEmoji, salary: salaryAmount, balance: profile.balance })
     });
 }
 
@@ -703,15 +700,11 @@ async function handleAddMoney(interaction: ChatInputCommandInteraction) {
 
     profile.balance += amount;
     await profile.save();
-
-    // 👇 Changed to pass the named object to format()
-    const formattedAmount = format(config.economy.currencyFormat, { amount: amount });
-    const formattedBalance = format(config.economy.currencyFormat, { amount: profile.balance });
     const replyMessage = format(config.economy.addMoney, {
         emoji: config.economy.coinEmoji,
-        added: formattedAmount,
+        added: amount,
         user: targetUser.id,
-        newBalance: formattedBalance
+        newBalance: profile.balance
     });
 
     await interaction.editReply({ content: replyMessage });
@@ -792,30 +785,23 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
     const customSeconds = interaction.options.getInteger("seconds") || 60;
     const timeMs = customSeconds * 1000;
 
+    // 1. Initial opening message structured through global config formats
     const initialReply = await interaction.editReply({
-        content: `🎰 **<@${interaction.user.id}>** opened a Roulette Table for **${customSeconds} seconds**! Join the thread below to place your bets.`
+        content: format(config.economy.roulette.openMessage, { userId: interaction.user.id, seconds: customSeconds })
     });
 
     const thread = await initialReply.startThread({
-        name: `🎰 Roulette Table - <@${interaction.user.id}>`,
+        name: format(config.economy.roulette.threadName, { username: interaction.user.username }),
         autoArchiveDuration: 60,
         reason: "Roulette Game Room"
     });
 
     const bets: RouletteBet[] = [];
 
-    await thread.send(
-        `🎡 **Roulette Table Opened!** (Closes in ${customSeconds} seconds)\n\n` +
-        `To enter, type your bet choice followed by your amount. **Example: \`red 250\`**\n` +
-        `• \`0-36 <amount>\` (8x payout)\n` +
-        `• \`green <amount>\` (8x payout) 🟢\n` + // 👈 Added to instructions
-        `• \`red <amount>\` (2x payout) 🔴\n` +
-        `• \`black <amount>\` (2x payout) ⚫\n` +
-        `• \`even <amount>\` (2x payout)\n` +
-        `• \`odd <amount>\` (2x payout)\n\n` +
-        `👍 _The bot will react with ✅ if your bet is accepted, or ❌ if something is wrong._\n` +
-        `👑 **<@${interaction.user.id}>**, type \`spin\` when everyone is ready!`
-    );
+    // 2. Main instructional guide announcement
+    await thread.send({
+        content: format(config.economy.roulette.guideMessage, { seconds: customSeconds, userId: interaction.user.id })
+    });
 
     const collector = thread.createMessageCollector({ filter: (m) => !m.author.bot, time: timeMs });
 
@@ -830,7 +816,6 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
             return;
         }
 
-        // 👈 Added "green" to the allowed string types here
         const validBetTypes = ["red", "black", "even", "odd", "green"];
         const parsedNumber = parseInt(commandOrType, 10);
         const isNumberBet = !isNaN(parsedNumber) && parsedNumber >= 0 && parsedNumber <= 36;
@@ -864,18 +849,16 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
     });
 
     collector.on("end", async (_, reason) => {
-        if (reason !== "spun") {
-            await thread.send("⏰ Table closed automatically due to inactivity.");
-            for (const bet of bets) {
-                const profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: bet.userId } });
-                if (profile) { profile.balance += bet.amount; await profile.save(); }
-            }
+        // CHANGED: Only trigger inactivity closure if absolutely no bets were registered
+        if (bets.length === 0) {
+            await thread.send({ content: config.economy.roulette.inactivityMessage });
             await thread.setLocked(true);
             await thread.setArchived(true);
             return;
         }
 
-
+        // If there are bets, it will now automatically pass through here and spin
+        // whether the host typed "spin" OR the collector timer naturally ran out.
         const winningNumber = randomInt(0, 37);
         const redNumbers = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
         let color: "green" | "red" | "black" = "green";
@@ -884,7 +867,8 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
         const isEven = winningNumber > 0 && winningNumber % 2 === 0;
         const isOdd = winningNumber > 0 && winningNumber % 2 !== 0;
 
-        await thread.send("✨ *The wheel is spinning...* ✨");
+        // 4. Send visual spin warning sequence
+        await thread.send({ content: config.economy.roulette.spinningMessage });
 
         const userBreakdowns = new Map<string, string[]>();
         const userNetTotals = new Map<string, number>();
@@ -892,44 +876,61 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
         for (const bet of bets) {
             let won = bet.betType === color || (bet.betType === "even" && isEven) || (bet.betType === "odd" && isOdd) || bet.betNumber === winningNumber;
 
-            // 👈 Update payout check so BOTH number bets and explicit "green" bets reward 36x payout
-            let payoutMultiplier = (bet.betType === "number" || bet.betType === "green") ? 36 : 2;
+            let payoutMultiplier = (bet.betType === "number" || bet.betType === "green") ? 8 : 2;
             let betDisplay = bet.betType === "number" ? `Number ${bet.betNumber}` : bet.betType;
 
             const profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: bet.userId } });
             const currentNet = userNetTotals.get(bet.userId) ?? 0;
             if (!userBreakdowns.has(bet.userId)) userBreakdowns.set(bet.userId, []);
 
-            const formattedBetAmount = format(config.economy.currencyFormat, { amount: bet.amount });
+            const formattedBetAmount = bet.amount.toLocaleString();
 
             if (won && profile) {
                 const winnings = bet.amount * payoutMultiplier;
                 profile.balance += winnings;
                 await profile.save();
-                const formattedWinnings = format(config.economy.currencyFormat, { amount: winnings });
-                userBreakdowns.get(bet.userId)!.push(`${betDisplay}: Won ${formattedWinnings}`);
+
+                const formattedWinnings = winnings.toLocaleString();
+                userBreakdowns.get(bet.userId)!.push(
+                    format(config.economy.roulette.betWonLine, { betDisplay, amount: formattedWinnings })
+                );
                 userNetTotals.set(bet.userId, currentNet + (winnings - bet.amount));
             } else {
-                userBreakdowns.get(bet.userId)!.push(`${betDisplay}: Lost ${formattedBetAmount}`);
+                userBreakdowns.get(bet.userId)!.push(
+                    format(config.economy.roulette.betLostLine, { betDisplay, amount: formattedBetAmount })
+                );
                 userNetTotals.set(bet.userId, currentNet - bet.amount);
             }
         }
 
         const emoji = color === "red" ? "🔴" : color === "black" ? "⚫" : "🟢";
-        let outputMessage = `🏁 **The wheel landed on ${winningNumber} ${color.toUpperCase()} ${emoji} !**\n\n`;
+
+        // 5. Build full game table data summary arrays
+        let outputMessage = format(config.economy.roulette.resultHeader, {
+            number: winningNumber,
+            color: color.toUpperCase(),
+            emoji: emoji
+        });
 
         for (const [userId, breakdownArray] of userBreakdowns.entries()) {
             const userMention = `<@${userId}>`;
             const netValue = userNetTotals.get(userId) ?? 0;
-            let netStatus = "Broke Even!";
+            let netStatus = config.economy.roulette.brokeEven;
 
-            if (netValue > 0) netStatus = `Won Net ${format(config.economy.currencyFormat, { amount: netValue })}!`;
-            else if (netValue < 0) netStatus = `Lost Net ${format(config.economy.currencyFormat, { amount: Math.abs(netValue) })}!`;
+            if (netValue > 0) {
+                netStatus = format(config.economy.roulette.wonNet, { amount: netValue.toLocaleString() });
+            } else if (netValue < 0) {
+                netStatus = format(config.economy.roulette.lostNet, { amount: Math.abs(netValue).toLocaleString() });
+            }
 
-            outputMessage += `**${userMention}**:\n${breakdownArray.join("\n")} | **${netStatus}**\n`;
+            outputMessage += format(config.economy.roulette.userSummaryRow, {
+                user: userMention,
+                breakdown: breakdownArray.join("\n"),
+                netStatus: netStatus
+            });
         }
 
-        await thread.send(outputMessage);
+        await thread.send({ content: outputMessage });
         await thread.setLocked(true);
         await thread.setArchived(true);
     });
@@ -955,7 +956,7 @@ async function seedDefaultShopItems(guildId: string) {
 }
 
 async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
-    // 1. Fetch all profiles in the current guild, sorted by balance descending
+    // 1. Fetch all profiles in the current guild, sorted by balance descending[cite: 3]
     const profiles = await EconomyProfile.findAll({
         where: { guildId: interaction.guildId! },
         order: [["balance", "DESC"]]
@@ -971,7 +972,7 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
     const pages: EmbedBuilder[] = [];
     const totalPages = Math.ceil(profiles.length / USERS_PER_PAGE);
 
-    // 2. Loop through profiles and slice them into chunks of 10
+    // 2. Loop through profiles and slice them into chunks of 10[cite: 3]
     for (let i = 0; i < profiles.length; i += USERS_PER_PAGE) {
         const chunk = profiles.slice(i, i + USERS_PER_PAGE);
         const currentPage = Math.floor(i / USERS_PER_PAGE) + 1;
@@ -983,17 +984,19 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
 
         let description = "";
 
-        // 3. Build the text rows for the current page chunk
+        // 3. Build the text rows for the current page chunk[cite: 3]
         chunk.forEach((profile, index) => {
             const globalRank = i + index + 1;
             let rankDisplay = `**#${globalRank}**`;
 
-            // Style up the top 3 with shiny medals
+            // Style up the top 3 with shiny medals[cite: 3]
             if (globalRank === 1) rankDisplay = "🥇";
             else if (globalRank === 2) rankDisplay = "🥈";
             else if (globalRank === 3) rankDisplay = "🥉";
 
-            const formattedBalance = format(config.economy.currencyFormat, { amount: profile.balance });
+            // ABANDONED: config.economy.currencyFormat
+            // FIXED: Natively uses local string spacing standards with a literal string suffix instead[cite: 3].
+            const formattedBalance = `${profile.balance.toLocaleString()}$`;
             description += `${rankDisplay} <@${profile.userId}> — **${formattedBalance}**\n`;
         });
 
@@ -1003,6 +1006,6 @@ async function handleLeaderboard(interaction: ChatInputCommandInteraction) {
         pages.push(embed);
     }
 
-    // 4. Pass the array of embeds into your pagination utility!
+    // 4. Pass the array of embeds into your pagination utility![cite: 3]
     await paginate(interaction, pages);
 }

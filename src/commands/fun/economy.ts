@@ -17,13 +17,14 @@ import {
     type CreationOptional,
     type InferAttributes,
     type InferCreationAttributes,
-    Op
+    Op, Sequelize
 } from "sequelize";
 import type { Cmd } from "~/util/base";
 import { format } from "~/util/base";
-import config from "config.json";
+import rnd from "~/util/rnd";
+import config from "config.json"; // Update to "../config.json.js" or "~/config.json" if your compiler requires it
 import { randomInt } from "crypto";
-import { paginate } from "~/util/paginator2";
+import { paginate } from "~/util/paginator2"; // FIX: Removed .ts and updated to project path mapping alias
 
 export class EconomyProfile extends Model<
     InferAttributes<EconomyProfile>,
@@ -151,6 +152,95 @@ export default {
         }, 3600000);
     },
 
+    slash: (builder) => {
+        return builder
+            .setName("economy")
+            .setDescription("Manage your pocket change and inventory")
+            .addSubcommand((sub) =>
+                sub
+                    .setName("balance")
+                    .setDescription("Check your current balance or another user's balance")
+                    .addUserOption((opt) => opt.setName("user").setDescription("The user to check").setRequired(false)),
+            )
+            .addSubcommand(sub => sub.setName("wage").setDescription("Collect your regular salary!"))
+            .addSubcommand(sub => sub.setName("leaderboard").setDescription("View the leaderboard"))
+            .addSubcommand((sub) => sub.setName("shop").setDescription("View available items for purchase"))
+            .addSubcommand((sub) =>
+                sub
+                    .setName("buy")
+                    .setDescription("Purchase an item from the shop")
+                    .addStringOption((opt) => opt.setName("item").setDescription("The ID of the item you want to buy (e.g. 'vip_role')").setRequired(true).setAutocomplete(true))
+                    .addIntegerOption((opt) => opt.setName("quantity").setDescription("How many to buy?").setMinValue(1))
+            )
+            .addSubcommand((sub) =>
+                sub
+                    .setName("use")
+                    .setDescription("Use a consumable item from your inventory")
+                    .addStringOption((opt) => opt.setName("item").setDescription("The ID of the item you want to use").setRequired(true).setAutocomplete(true))
+            )
+            .addSubcommand((sub) =>
+                sub
+                    .setName("refill")
+                    .setDescription("Refill the stock of a specific shop item.")
+                    .addStringOption(option =>
+                        option.setName("item")
+                            .setDescription("The ID of the item to refill")
+                            .setRequired(true)
+                            .setAutocomplete(true)
+                    )
+                    .addIntegerOption(option =>
+                        option.setName("amount")
+                            .setDescription("How much stock to add")
+                            .setRequired(true)
+                    )
+            )
+            .addSubcommand((sub) => sub.setName("inventory").setDescription("View items you currently own"))
+            .addSubcommand((sub) =>
+                sub
+                    .setName("add-money")
+                    .setDescription("Add money to a user's balance (Admin/Staff Only)")
+                    .addUserOption((opt) => opt.setName("user").setDescription("The user receiving the money").setRequired(true))
+                    .addIntegerOption((opt) => opt.setName("amount").setDescription("The amount of money to add").setRequired(true)),
+            )
+            .addSubcommand((sub) =>
+                sub
+                    .setName("set-balance")
+                    .setDescription("Forcefully set a user's balance to a specific amount (Staff Only)")
+                    .addUserOption((opt) => opt.setName("user").setDescription("The target user").setRequired(true))
+                    .addIntegerOption((opt) => opt.setName("amount").setDescription("The exact balance to set").setRequired(true)),
+            )
+            .addSubcommandGroup((group) =>
+                group
+                    .setName("gamble")
+                    .setDescription("Risk your money on different casino games!")
+                    .addSubcommand((sub) =>
+                        sub
+                            .setName("coinflip")
+                            .setDescription("A 50/50 chance to double your money!")
+                            .addIntegerOption((opt) => opt.setName("amount").setDescription("How much to bet").setRequired(true).setMinValue(1))
+                    )
+                    .addSubcommand((sub) =>
+                        sub
+                            .setName("dice")
+                            .setDescription("Guess a 6-sided die roll. Win 5x your bet!")
+                            .addIntegerOption((opt) => opt.setName("amount").setDescription("How much to bet").setRequired(true).setMinValue(1))
+                            .addIntegerOption((opt) => opt.setName("guess").setDescription("Your guess (1-6)").setRequired(true).setMinValue(1).setMaxValue(6))
+                    )
+                    .addSubcommand((sub) =>
+                        sub
+                            .setName("roulette")
+                            .setDescription("Open a roulette table and place multiple bets! (1-24, Red/Black, Even/Odd)")
+                            .addIntegerOption(option =>
+                                option.setName("seconds")
+                                    .setDescription("How many seconds should the table stay open? (Default: 60)")
+                                    .setRequired(false)
+                                    .setMinValue(15)
+                                    .setMaxValue(1800)
+                            )
+                    )
+            );
+    },
+
     onInteraction: async (ctx, interaction) => {
         if (interaction.isAutocomplete()) {
             if (!interaction.guildId) return void await interaction.respond([]);
@@ -243,7 +333,6 @@ export default {
 
         const isEphemeral = EPHEMERAL_MAPPING[sub] ?? false;
 
-        // SAFE GUARD: Wrapped inside a try-catch to absorb 10062 Unknown Interaction token expirations
         try {
             await interaction.deferReply({
                 flags: isEphemeral ? MessageFlags.Ephemeral : undefined
@@ -462,7 +551,6 @@ async function handleShop(interaction: ChatInputCommandInteraction) {
     collector.on("collect", async (buttonInteraction) => {
         const itemId = buttonInteraction.customId.replace("shop_buy_", "");
 
-        // SAFE GUARD: Wrap button component interaction deferral inside try-catch to prevent crashes on latency spikes
         try {
             await buttonInteraction.deferReply({ ephemeral: true });
         } catch (error) {
@@ -647,8 +735,10 @@ async function handleInventory(interaction: ChatInputCommandInteraction) {
         return `${visualName} x\`${item.quantity}\``;
     }).join("\n");
 
-    const embed = new EmbedBuilder().setTitle(`🎒 <@${interaction.user.id}>'s Inventory`).setDescription(inventoryList).setColor(0x00ae86);
-    await interaction.editReply({ embeds: [embed] });
+    // FIX: Combined everything into a clean, markdown-formatted plain text string
+    const responseMessage = `🎒 **<@${interaction.user.id}>'s Inventory**\n\n${inventoryList}`;
+
+    await interaction.editReply({ content: responseMessage });
 }
 
 async function handleUse(interaction: ChatInputCommandInteraction) {
@@ -834,7 +924,7 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
 
             if (currentBalance < amount) return void await message.react("❌");
 
-            if (!profile) profile = await EconomyProfile.create({ guildId: message.author.id, userId: message.author.id, balance: STARTING_BALANCE });
+            if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: message.author.id, balance: STARTING_BALANCE });
 
             profile.balance -= amount;
             await profile.save();

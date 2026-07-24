@@ -237,8 +237,8 @@ Consider donating to one of the following people:
           "🎡 **Roulette Table Opened!** (Closes in {seconds} seconds)\n\n" +
           "To enter, type your bet choice followed by your amount. " +
           "**Example: `red 250`**\n" +
-          "• `0-36 <amount>` (8x payout)\n" +
-          "• `green <amount>` (8x payout) 🟢\n" +
+          "• `0-36 <amount>` (35x payout)\n" +
+          "• `green <amount>` (35x payout) 🟢\n" +
           "• `red <amount>` (2x payout) 🔴\n" +
           "• `black <amount>` (2x payout) ⚫\n" +
           "• `even <amount>` (2x payout)\n" +

@@ -9,7 +9,8 @@ import {
     ContainerBuilder,
     TextDisplayBuilder,
     SeparatorBuilder,
-    SectionBuilder
+    SectionBuilder,
+    InteractionContextType, PermissionFlagsBits
 } from "discord.js";
 import {
     DataTypes,
@@ -21,10 +22,9 @@ import {
 } from "sequelize";
 import type { Cmd } from "~/util/base";
 import { format } from "~/util/base";
-import rnd from "~/util/rnd";
-import config from "config.json"; // Update to "../config.json.js" or "~/config.json" if your compiler requires it
+import config from "config.json";
 import { randomInt } from "crypto";
-import { paginate } from "~/util/paginator2"; // FIX: Removed .ts and updated to project path mapping alias
+import { paginate } from "~/util/paginator2";
 
 export class EconomyProfile extends Model<
     InferAttributes<EconomyProfile>,
@@ -149,13 +149,14 @@ export default {
             } catch (err) {
                 console.error("[Sweeper Worker Error]:", err);
             }
-        }, 3600000);
+        }, 10000);
     },
 
     slash: (builder) => {
         return builder
             .setName("economy")
             .setDescription("Manage your pocket change and inventory")
+            .setContexts(InteractionContextType.Guild)
             .addSubcommand((sub) =>
                 sub
                     .setName("balance")
@@ -170,7 +171,7 @@ export default {
                     .setName("buy")
                     .setDescription("Purchase an item from the shop")
                     .addStringOption((opt) => opt.setName("item").setDescription("The ID of the item you want to buy (e.g. 'vip_role')").setRequired(true).setAutocomplete(true))
-                    .addIntegerOption((opt) => opt.setName("quantity").setDescription("How many to buy?").setMinValue(1))
+                    .addIntegerOption((opt) => opt.setName("quantity").setDescription("How many to buy?").setMinValue(1).setMaxValue(10000000))
             )
             .addSubcommand((sub) =>
                 sub
@@ -229,7 +230,7 @@ export default {
                     .addSubcommand((sub) =>
                         sub
                             .setName("roulette")
-                            .setDescription("Open a roulette table and place multiple bets! (1-24, Red/Black, Even/Odd)")
+                            .setDescription("Open a roulette table and place multiple bets! (0-36, Red/Black, Even/Odd)")
                             .addIntegerOption(option =>
                                 option.setName("seconds")
                                     .setDescription("How many seconds should the table stay open? (Default: 60)")
@@ -250,17 +251,33 @@ export default {
             const shopItems = config.economy.shopItems || [];
 
             if (sub === "buy" || sub === "refill") {
-                const filtered = shopItems.filter(item =>
-                    item.name.toLowerCase().includes(focusedValue) ||
-                    item.itemId.toLowerCase().includes(focusedValue)
-                );
+                try {
+                    const dbStockRecords = await ShopItem.findAll({ where: { guildId: interaction.guildId } });
+                    const stockMap = new Map(dbStockRecords.map(s => [s.itemId, s.stock]));
 
-                return void await interaction.respond(
-                    filtered.slice(0, 25).map(item => ({
-                        name: `${item.name} — $${item.price}`,
-                        value: item.itemId
-                    }))
-                );
+                    const filtered = shopItems.filter(item => {
+                        const matchesFocus = item.name.toLowerCase().includes(focusedValue) ||
+                            item.itemId.toLowerCase().includes(focusedValue);
+                        if (!matchesFocus) return false;
+
+                        const currentStock = item.stock === -1
+                            ? -1
+                            : (stockMap.get(item.itemId) ?? item.stock);
+
+                        return currentStock === -1 || currentStock > 0;
+                    });
+
+                    return void await interaction.respond(
+                        filtered.slice(0, 25).map(item => ({
+                            name: `${item.name} — $${item.price}`,
+                            value: item.itemId
+                        }))
+                    );
+                } catch (error: any) {
+                    if (error?.code !== 10062) {
+                        console.error("Autocomplete execution error:", error);
+                    }
+                }
             }
 
             if (sub === "use") {
@@ -269,15 +286,7 @@ export default {
                 });
 
                 const itemMap = new Map(shopItems.map(i => [i.itemId, i.name]));
-                const validInventory = [];
-
-                for (const inv of inventory) {
-                    if (!itemMap.has(inv.itemKey)) {
-                        await inv.destroy();
-                    } else {
-                        validInventory.push(inv);
-                    }
-                }
+                const validInventory = inventory.filter(inv => itemMap.has(inv.itemKey));
 
                 const filtered = validInventory.filter(inv => {
                     const name = itemMap.get(inv.itemKey) || inv.itemKey;
@@ -369,7 +378,7 @@ export default {
                 return;
             }
         }
-    },
+    }
 } as Cmd;
 
 // ── UTILITY ──────────────────────────────────────────────────────────────
@@ -473,7 +482,7 @@ async function handleShop(interaction: ChatInputCommandInteraction) {
             .addTextDisplayComponents(
                 new TextDisplayBuilder().setContent("🛒 **The Server Shop**\nThe shop is currently empty.")
             );
-        return void await interaction.reply({
+        return void await interaction.editReply({
             components: [emptyContainer],
             flags: [MessageFlags.IsComponentsV2]
         });
@@ -573,7 +582,8 @@ async function handleShop(interaction: ChatInputCommandInteraction) {
                 const json = container.toJSON();
                 if (json.components) {
                     json.components.forEach((comp: any) => {
-                        if (comp.type === 9 && comp.accessory && comp.accessory.type === 2) {
+                        if (comp.type === ComponentType.Section &&
+                            comp.accessory?.type === ComponentType.Button) {
                             comp.accessory.disabled = true;
                         }
                     });
@@ -587,12 +597,30 @@ async function handleShop(interaction: ChatInputCommandInteraction) {
 }
 
 async function handleBuy(interaction: ChatInputCommandInteraction) {
+    const sequelize = EconomyProfile.sequelize;
+    if (!sequelize) {
+        return void await interaction.editReply({ content: "❌ Database connection error." });
+    }
+
     const itemKey = interaction.options.getString("item", true).toLowerCase();
     const quantity = interaction.options.getInteger("quantity") ?? 1;
 
     const shopItems = config.economy.shopItems || [];
     const item = shopItems.find(i => i.itemId === itemKey);
-    if (!item) return void await interaction.editReply({ content: config.economy.shop.notItem });
+
+    if (!item) {
+        return void await interaction.editReply({ content: config.economy.shop.notItem });
+    }
+
+    if (item.roleId && quantity > 1) {
+        return void await interaction.editReply({ content: config.economy.shop.notMultiple });
+    }
+
+    if (item.roleId && !item.durationDays && interaction.member instanceof GuildMember) {
+        if (interaction.member.roles.cache.has(item.roleId)) {
+            return void await interaction.editReply({ content: config.economy.shop.permRoleOwned });
+        }
+    }
 
     let currentStock = item.stock;
     let stockTracker = null;
@@ -609,13 +637,8 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
         return void await interaction.editReply({ content: format(config.economy.shop.notEnough, {stock: currentStock} )});
     }
 
-    if (item.roleId && quantity > 1) {
-        return void await interaction.editReply({ content: config.economy.shop.notMultiple });
-    }
-
-    let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: interaction.user.id } });
+    const profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: interaction.user.id } });
     const currentBalance = profile?.balance ?? STARTING_BALANCE;
-
     const totalCost = item.price * quantity;
 
     const shopErrorMessage = format(config.economy.shop.cantAfford,{
@@ -625,40 +648,69 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
     });
     if (!(await hasSufficientFunds(interaction, currentBalance, totalCost, shopErrorMessage))) return;
 
-    if (!profile) {
-        profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: interaction.user.id, balance: STARTING_BALANCE });
-    }
-
+    let newBalance = currentBalance - totalCost;
     let roleGrantedMessage = "";
 
-    if (item.stock !== -1) {
-        if (!stockTracker) {
-            stockTracker = await ShopItem.create({ guildId: interaction.guildId!, itemId: itemKey, stock: item.stock - quantity });
-        } else {
-            stockTracker.stock -= quantity;
-            await stockTracker.save();
-        }
+    try {
+        await sequelize.transaction(async (t) => {
+            const [userProfile] = await EconomyProfile.findOrCreate({
+                where: { guildId: interaction.guildId!, userId: interaction.user.id },
+                defaults: { guildId: interaction.guildId!, userId: interaction.user.id, balance: STARTING_BALANCE },
+                transaction: t
+            });
+
+            await userProfile.decrement({ balance: totalCost }, { transaction: t });
+            newBalance = userProfile.balance - totalCost;
+
+            if (item.stock !== -1) {
+                const [itemStock] = await ShopItem.findOrCreate({
+                    where: { guildId: interaction.guildId!, itemId: itemKey },
+                    defaults: { guildId: interaction.guildId!, itemId: itemKey, stock: item.stock },
+                    transaction: t
+                });
+                await itemStock.decrement({ stock: quantity }, { transaction: t });
+            }
+
+            const [invItem, created] = await Inventory.findOrCreate({
+                where: { guildId: interaction.guildId!, userId: interaction.user.id, itemKey },
+                defaults: { guildId: interaction.guildId!, userId: interaction.user.id, itemKey, quantity: quantity },
+                transaction: t
+            });
+
+            if (!created) {
+                await invItem.increment({ quantity: quantity }, { transaction: t });
+            }
+
+            if (item.roleId && item.durationDays) {
+                const timeToAdd = item.durationDays * 24 * 60 * 60 * 1000;
+                const tempRole = await TempRole.findOne({
+                    where: { guildId: interaction.guildId!, userId: interaction.user.id, roleId: item.roleId },
+                    transaction: t
+                });
+
+                if (tempRole) {
+                    tempRole.expiresAt = new Date(tempRole.expiresAt.getTime() + timeToAdd);
+                    await tempRole.save({ transaction: t });
+                } else {
+                    await TempRole.create({
+                        guildId: interaction.guildId!,
+                        userId: interaction.user.id,
+                        roleId: item.roleId,
+                        expiresAt: new Date(Date.now() + timeToAdd)
+                    }, { transaction: t });
+                }
+            }
+        });
+    } catch (error) {
+        console.error("Buy Transaction Error:", error);
+        return void await interaction.editReply({ content: "❌ Transaction failed. Please try again." });
     }
-    profile.balance -= totalCost;
 
     if (item.roleId && interaction.member instanceof GuildMember) {
         try {
             if (item.durationDays) {
-                const timeToAdd = item.durationDays * 24 * 60 * 60 * 1000;
-                let tempRole = await TempRole.findOne({ where: { guildId: interaction.guildId!, userId: interaction.user.id, roleId: item.roleId } });
-
-                if (tempRole) {
-                    tempRole.expiresAt = new Date(tempRole.expiresAt.getTime() + timeToAdd);
-                    await tempRole.save();
-                } else {
-                    await TempRole.create({
-                        guildId: interaction.guildId!, userId: interaction.user.id,
-                        roleId: item.roleId, expiresAt: new Date(Date.now() + timeToAdd)
-                    });
-                }
-
                 await interaction.member.roles.add(item.roleId, `Purchased ${item.durationDays} day pass.`);
-                roleGrantedMessage = format(config.economy.shop.tempRole, {roleId: item.roleId, durationDays: item.durationDays});
+                roleGrantedMessage = format(config.economy.shop.tempRole, { roleId: item.roleId, durationDays: item.durationDays });
 
                 const msRemaining = item.durationDays * 24 * 60 * 60 * 1000;
                 const memberRef = interaction.member;
@@ -679,11 +731,7 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
                         console.error("[Instant Timer Error] Failed to remove role:", err);
                     }
                 }, msRemaining);
-
             } else {
-                if (interaction.member.roles.cache.has(item.roleId)) {
-                    return void await interaction.editReply({ content: config.economy.shop.permRoleOwned });
-                }
                 await interaction.member.roles.add(item.roleId, `Purchased permanent role.`);
                 roleGrantedMessage = format(config.economy.shop.permaRole, {roleId: item.roleId});
             }
@@ -692,23 +740,12 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
         }
     }
 
-    await profile.save();
-
-    const [invItem, created] = await Inventory.findOrCreate({
-        where: { guildId: interaction.guildId!, userId: interaction.user.id, itemKey },
-        defaults: { guildId: interaction.guildId!, userId: interaction.user.id, itemKey, quantity: quantity }
-    });
-
-    if (!created) {
-        invItem.quantity += quantity;
-        await invItem.save();
-    }
-
-    await interaction.editReply({ content: format(config.economy.shop.successBuy, {
+    await interaction.editReply({
+        content: format(config.economy.shop.successBuy, {
             name: quantity > 1 ? `${quantity}x ${item.name}` : item.name,
             price: totalCost,
             message: roleGrantedMessage,
-            balance: profile.balance
+            balance: newBalance
         })
     });
 }
@@ -734,8 +771,6 @@ async function handleInventory(interaction: ChatInputCommandInteraction) {
         const visualName = itemMap.get(item.itemKey) || `⚙️ Unknown Item (${item.itemKey})`;
         return `${visualName} x\`${item.quantity}\``;
     }).join("\n");
-
-    // FIX: Combined everything into a clean, markdown-formatted plain text string
     const responseMessage = `🎒 **<@${interaction.user.id}>'s Inventory**\n\n${inventoryList}`;
 
     await interaction.editReply({ content: responseMessage });
@@ -876,6 +911,13 @@ interface RouletteBet {
 }
 
 async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
+    if (interaction.channel?.isThread() || !interaction.appPermissions?.has(PermissionFlagsBits.CreatePublicThreads)) {
+        await interaction.editReply({
+            content: "❌ Roulette cannot be started inside a thread or without thread creation permissions."
+        });
+        return;
+    }
+
     const customSeconds = interaction.options.getInteger("seconds") || 60;
     const timeMs = customSeconds * 1000;
 
@@ -883,11 +925,19 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
         content: format(config.economy.roulette.openMessage, { userId: interaction.user.id, seconds: customSeconds })
     });
 
-    const thread = await initialReply.startThread({
-        name: format(config.economy.roulette.threadName, { username: interaction.user.username }),
-        autoArchiveDuration: 60,
-        reason: "Roulette Game Room"
-    });
+    let thread;
+    try {
+        thread = await initialReply.startThread({
+            name: format(config.economy.roulette.threadName, { username: interaction.user.username }),
+            autoArchiveDuration: 60,
+            reason: "Roulette Game Room"
+        });
+    } catch {
+        await interaction.editReply({
+            content: "❌ Failed to create the game thread. Please ensure I have proper permissions."
+        });
+        return;
+    }
 
     const bets: RouletteBet[] = [];
 
@@ -964,7 +1014,7 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
         for (const bet of bets) {
             let won = bet.betType === color || (bet.betType === "even" && isEven) || (bet.betType === "odd" && isOdd) || bet.betNumber === winningNumber;
 
-            let payoutMultiplier = (bet.betType === "number" || bet.betType === "green") ? 8 : 2;
+            let payoutMultiplier = (bet.betType === "number" || bet.betType === "green") ? 35 : 2;
             let betDisplay = bet.betType === "number" ? `Number ${bet.betNumber}` : bet.betType;
 
             const profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: bet.userId } });

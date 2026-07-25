@@ -149,7 +149,7 @@ export default {
             } catch (err) {
                 console.error("[Sweeper Worker Error]:", err);
             }
-        }, 10000);
+        }, 10 * 1000);
     },
 
     slash: (builder) => {
@@ -277,6 +277,7 @@ export default {
                     if (error?.code !== 10062) {
                         console.error("Autocomplete execution error:", error);
                     }
+                    return;
                 }
             }
 
@@ -656,20 +657,31 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
             const [userProfile] = await EconomyProfile.findOrCreate({
                 where: { guildId: interaction.guildId!, userId: interaction.user.id },
                 defaults: { guildId: interaction.guildId!, userId: interaction.user.id, balance: STARTING_BALANCE },
-                transaction: t
+                transaction: t,
+                lock: t.LOCK.UPDATE
             });
 
-            await userProfile.decrement({ balance: totalCost }, { transaction: t });
-            newBalance = userProfile.balance - totalCost;
+            if (userProfile.balance < totalCost) {
+                throw new Error("INSUFFICIENT_FUNDS");
+            }
 
             if (item.stock !== -1) {
                 const [itemStock] = await ShopItem.findOrCreate({
                     where: { guildId: interaction.guildId!, itemId: itemKey },
                     defaults: { guildId: interaction.guildId!, itemId: itemKey, stock: item.stock },
-                    transaction: t
+                    transaction: t,
+                    lock: t.LOCK.UPDATE
                 });
+
+                if (itemStock.stock < quantity) {
+                    throw new Error("INSUFFICIENT_STOCK");
+                }
+
                 await itemStock.decrement({ stock: quantity }, { transaction: t });
             }
+
+            await userProfile.decrement({ balance: totalCost }, { transaction: t });
+            newBalance = userProfile.balance - totalCost;
 
             const [invItem, created] = await Inventory.findOrCreate({
                 where: { guildId: interaction.guildId!, userId: interaction.user.id, itemKey },
@@ -701,7 +713,13 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
                 }
             }
         });
-    } catch (error) {
+    } catch (error: any) {
+        if (error?.message === "INSUFFICIENT_FUNDS") {
+            return void await interaction.editReply({ content: shopErrorMessage });
+        }
+        if (error?.message === "INSUFFICIENT_STOCK") {
+            return void await interaction.editReply({ content: format(config.economy.shop.soldOut, { name: item.name }) });
+        }
         console.error("Buy Transaction Error:", error);
         return void await interaction.editReply({ content: "❌ Transaction failed. Please try again." });
     }
@@ -737,6 +755,15 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
             }
         } catch (error) {
             console.error("Failed to assign shop role:", error);
+            if (profile) {
+                profile.balance += totalCost;
+                await profile.save();
+            }
+
+            // Stop execution and inform the user of the failure and refund
+            return void await interaction.editReply({
+                content: "❌ Failed to grant the role, refunded."
+            }).catch(() => {});
         }
     }
 
@@ -755,15 +782,8 @@ async function handleInventory(interaction: ChatInputCommandInteraction) {
 
     const shopItems = config.economy.shopItems || [];
     const itemMap = new Map(shopItems.map(i => [i.itemId, i.name]));
-    const validInventory = [];
 
-    for (const item of items) {
-        if (!itemMap.has(item.itemKey)) {
-            await item.destroy();
-        } else {
-            validInventory.push(item);
-        }
-    }
+    const validInventory = items.filter(item => itemMap.has(item.itemKey));
 
     if (validInventory.length === 0) return void await interaction.editReply({ content: config.economy.inv.empty });
 
@@ -782,25 +802,24 @@ async function handleUse(interaction: ChatInputCommandInteraction) {
     const shopItems = config.economy.shopItems || [];
     const shopItem = shopItems.find(i => i.itemId === itemKey);
 
+    if (!shopItem) {
+        return void await interaction.editReply({ content: config.economy.inv.nonexistent }).catch(() => {});
+    }
+
     const invItem = await Inventory.findOne({
         where: { guildId: interaction.guildId!, userId: interaction.user.id, itemKey }
     });
 
-    if (!shopItem) {
-        if (invItem) await invItem.destroy();
-        return void await interaction.editReply({ content: config.economy.inv.nonexistent });
-    }
-
     if (!invItem || invItem.quantity <= 0) {
         return void await interaction.editReply({
-            content: format(config.economy.inv.lack, {item: shopItem.name})
-        });
+            content: format(config.economy.inv.lack, { item: shopItem.name })
+        }).catch(() => {});
     }
 
     if (!shopItem.useMessage) {
         return void await interaction.editReply({
-            content: format(config.economy.inv.nonconsumable, {name: shopItem.name})
-        });
+            content: format(config.economy.inv.nonconsumable, { name: shopItem.name })
+        }).catch(() => {});
     }
 
     invItem.quantity -= 1;
@@ -814,7 +833,7 @@ async function handleUse(interaction: ChatInputCommandInteraction) {
 
     await interaction.editReply({
         content: `📦 **<@${interaction.user.id}>** used a **${shopItem.name}**!\n\n${customReply}`
-    });
+    }).catch(() => {});
 }
 
 async function handleAddMoney(interaction: ChatInputCommandInteraction) {
@@ -914,16 +933,21 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
     if (interaction.channel?.isThread() || !interaction.appPermissions?.has(PermissionFlagsBits.CreatePublicThreads)) {
         await interaction.editReply({
             content: "❌ Roulette cannot be started inside a thread or without thread creation permissions."
-        });
+        }).catch(() => {});
         return;
     }
 
     const customSeconds = interaction.options.getInteger("seconds") || 60;
     const timeMs = customSeconds * 1000;
 
-    const initialReply = await interaction.editReply({
-        content: format(config.economy.roulette.openMessage, { userId: interaction.user.id, seconds: customSeconds })
-    });
+    let initialReply;
+    try {
+        initialReply = await interaction.editReply({
+            content: format(config.economy.roulette.openMessage, { userId: interaction.user.id, seconds: customSeconds })
+        });
+    } catch {
+        return;
+    }
 
     let thread;
     try {
@@ -935,7 +959,7 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
     } catch {
         await interaction.editReply({
             content: "❌ Failed to create the game thread. Please ensure I have proper permissions."
-        });
+        }).catch(() => {});
         return;
     }
 
@@ -943,7 +967,7 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
 
     await thread.send({
         content: format(config.economy.roulette.guideMessage, { seconds: customSeconds, userId: interaction.user.id })
-    });
+    }).catch(() => {});
 
     const collector = thread.createMessageCollector({ filter: (m) => !m.author.bot, time: timeMs });
 
@@ -952,8 +976,8 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
         const commandOrType = args[0];
 
         if (commandOrType === "spin") {
-            if (message.author.id !== interaction.user.id) return void await message.react("❌");
-            if (bets.length === 0) return void await message.react("❌");
+            if (message.author.id !== interaction.user.id) return void await message.react("❌").catch(() => {});
+            if (bets.length === 0) return void await message.react("❌").catch(() => {});
             collector.stop("spun");
             return;
         }
@@ -964,20 +988,19 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
 
         if (validBetTypes.includes(commandOrType) || isNumberBet) {
             const amountStr = args[1];
-            if (!amountStr) return void await message.react("❌");
+            if (!amountStr) return void await message.react("❌").catch(() => {});
 
             const amount = parseInt(amountStr, 10);
-            if (isNaN(amount) || amount <= 0) return void await message.react("❌");
+            if (isNaN(amount) || amount <= 0) return void await message.react("❌").catch(() => {});
 
             let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: message.author.id } });
             const currentBalance = profile?.balance ?? STARTING_BALANCE;
 
-            if (currentBalance < amount) return void await message.react("❌");
+            if (currentBalance < amount) return void await message.react("❌").catch(() => {});
 
             if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: message.author.id, balance: STARTING_BALANCE });
 
-            profile.balance -= amount;
-            await profile.save();
+            await profile.decrement('balance', {by: amount});
 
             bets.push({
                 userId: message.author.id,
@@ -986,15 +1009,17 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
                 betType: isNumberBet ? "number" : (commandOrType as any),
                 betNumber: isNumberBet ? parsedNumber : undefined
             });
-            await message.react("✅");
+            await message.react("✅").catch(() => {});
         }
     });
 
     collector.on("end", async (_, reason) => {
         if (bets.length === 0) {
-            await thread.send({ content: config.economy.roulette.inactivityMessage });
-            await thread.setLocked(true);
-            await thread.setArchived(true);
+            await thread.send({ content: config.economy.roulette.inactivityMessage }).catch(() => {});
+            try {
+                await thread.setLocked(true);
+                await thread.setArchived(true);
+            } catch {}
             return;
         }
 
@@ -1006,7 +1031,7 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
         const isEven = winningNumber > 0 && winningNumber % 2 === 0;
         const isOdd = winningNumber > 0 && winningNumber % 2 !== 0;
 
-        await thread.send({ content: config.economy.roulette.spinningMessage });
+        await thread.send({ content: config.economy.roulette.spinningMessage }).catch(() => {});
 
         const userBreakdowns = new Map<string, string[]>();
         const userNetTotals = new Map<string, number>();
@@ -1025,8 +1050,7 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
 
             if (won && profile) {
                 const winnings = bet.amount * payoutMultiplier;
-                profile.balance += winnings;
-                await profile.save();
+                await profile.increment('balance', { by: winnings });
 
                 const formattedWinnings = winnings.toLocaleString();
                 userBreakdowns.get(bet.userId)!.push(
@@ -1067,9 +1091,30 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
             });
         }
 
-        await thread.send({ content: outputMessage });
-        await thread.setLocked(true);
-        await thread.setArchived(true);
+        // Chunk and send outputMessage if it exceeds 1900 characters
+        const CHUNK_LIMIT = 1900;
+        const lines = outputMessage.split("\n");
+        let currentChunk = "";
+
+        for (const line of lines) {
+            if ((currentChunk + "\n" + line).length > CHUNK_LIMIT) {
+                if (currentChunk.trim()) {
+                    await thread.send({ content: currentChunk }).catch(() => {});
+                }
+                currentChunk = line;
+            } else {
+                currentChunk = currentChunk ? `${currentChunk}\n${line}` : line;
+            }
+        }
+
+        if (currentChunk.trim()) {
+            await thread.send({ content: currentChunk }).catch(() => {});
+        }
+
+        try {
+            await thread.setLocked(true);
+            await thread.setArchived(true);
+        } catch {}
     });
 }
 

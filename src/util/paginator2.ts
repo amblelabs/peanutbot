@@ -73,8 +73,7 @@ export async function paginate(
         prevButton.setDisabled(true);
         nextButton.setDisabled(true);
 
-        await message.edit({ components: [getRow()] }).catch(() => {
-            // Catch error in case the message was deleted before the timer ended
+        await interaction.editReply({ components: [getRow()] }).catch(() => {
             console.warn("Could not disable pagination buttons (message deleted).");
         });
     });

@@ -18,7 +18,7 @@ import {
     type CreationOptional,
     type InferAttributes,
     type InferCreationAttributes,
-    Op, Sequelize
+    Op, Sequelize, Transaction
 } from "sequelize";
 import type { Cmd } from "~/util/base";
 import { format } from "~/util/base";
@@ -260,6 +260,8 @@ export default {
                             item.itemId.toLowerCase().includes(focusedValue);
                         if (!matchesFocus) return false;
 
+                        if (sub === "refill") return item.stock !== -1;
+
                         const currentStock = item.stock === -1
                             ? -1
                             : (stockMap.get(item.itemId) ?? item.stock);
@@ -450,12 +452,12 @@ async function handleWage(interaction: ChatInputCommandInteraction) {
 
     const salaryAmount = calculateWage(interaction.member);
 
-    profile.balance += salaryAmount;
+    await profile.increment({ balance: salaryAmount });
     profile.lastWageClaim = now;
     await profile.save();
 
     await interaction.editReply({
-        content: format(config.economy.wages.message, {emoji: config.economy.coinEmoji, salary: salaryAmount, balance: profile.balance })
+        content: format(config.economy.wages.message, {emoji: config.economy.coinEmoji, salary: salaryAmount, balance: profile.balance + salaryAmount })
     });
 }
 
@@ -653,35 +655,44 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
     let roleGrantedMessage = "";
 
     try {
-        await sequelize.transaction(async (t) => {
-            const [userProfile] = await EconomyProfile.findOrCreate({
+        await sequelize.transaction({ type: Transaction.TYPES.IMMEDIATE }, async (t) => {
+            await EconomyProfile.findOrCreate({
                 where: { guildId: interaction.guildId!, userId: interaction.user.id },
                 defaults: { guildId: interaction.guildId!, userId: interaction.user.id, balance: STARTING_BALANCE },
-                transaction: t,
-                lock: t.LOCK.UPDATE
+                transaction: t
             });
 
-            if (userProfile.balance < totalCost) {
-                throw new Error("INSUFFICIENT_FUNDS");
-            }
-
             if (item.stock !== -1) {
-                const [itemStock] = await ShopItem.findOrCreate({
+                await ShopItem.findOrCreate({
                     where: { guildId: interaction.guildId!, itemId: itemKey },
                     defaults: { guildId: interaction.guildId!, itemId: itemKey, stock: item.stock },
-                    transaction: t,
-                    lock: t.LOCK.UPDATE
+                    transaction: t
                 });
 
-                if (itemStock.stock < quantity) {
-                    throw new Error("INSUFFICIENT_STOCK");
-                }
+                const [stockTaken] = await ShopItem.update(
+                    { stock: Sequelize.literal(`stock - ${quantity}`) as any },
+                    {
+                        where: { guildId: interaction.guildId!, itemId: itemKey, stock: { [Op.gte]: quantity } },
+                        transaction: t
+                    }
+                );
 
-                await itemStock.decrement({ stock: quantity }, { transaction: t });
+                if (stockTaken === 0) throw new Error("INSUFFICIENT_STOCK");
             }
 
-            await userProfile.decrement({ balance: totalCost }, { transaction: t });
-            newBalance = userProfile.balance - totalCost;
+            const [debited] = await EconomyProfile.update(
+                { balance: Sequelize.literal(`balance - ${totalCost}`) as any },
+                {
+                    where: {
+                        guildId: interaction.guildId!,
+                        userId: interaction.user.id,
+                        balance: { [Op.gte]: totalCost }
+                    },
+                    transaction: t
+                }
+            );
+
+            if (debited === 0) throw new Error("INSUFFICIENT_FUNDS");
 
             const [invItem, created] = await Inventory.findOrCreate({
                 where: { guildId: interaction.guildId!, userId: interaction.user.id, itemKey },
@@ -724,43 +735,66 @@ async function handleBuy(interaction: ChatInputCommandInteraction) {
         return void await interaction.editReply({ content: "❌ Transaction failed. Please try again." });
     }
 
+    newBalance = (await EconomyProfile.findOne({
+        where: { guildId: interaction.guildId!, userId: interaction.user.id }
+    }))?.balance ?? newBalance;
+
     if (item.roleId && interaction.member instanceof GuildMember) {
         try {
             if (item.durationDays) {
                 await interaction.member.roles.add(item.roleId, `Purchased ${item.durationDays} day pass.`);
                 roleGrantedMessage = format(config.economy.shop.tempRole, { roleId: item.roleId, durationDays: item.durationDays });
-
-                const msRemaining = item.durationDays * 24 * 60 * 60 * 1000;
-                const memberRef = interaction.member;
-                const targetRoleId = item.roleId;
-                const targetGuildId = interaction.guildId!;
-                const targetUserId = interaction.user.id;
-
-                setTimeout(async () => {
-                    try {
-                        const currentRecord = await TempRole.findOne({ where: { guildId: targetGuildId, userId: targetUserId, roleId: targetRoleId } });
-                        if (currentRecord && currentRecord.expiresAt <= new Date()) {
-                            if (memberRef.roles.cache.has(targetRoleId)) {
-                                await memberRef.roles.remove(targetRoleId, "🕒 Temporary shop item duration expired.");
-                            }
-                            await currentRecord.destroy();
-                        }
-                    } catch (err) {
-                        console.error("[Instant Timer Error] Failed to remove role:", err);
-                    }
-                }, msRemaining);
             } else {
                 await interaction.member.roles.add(item.roleId, `Purchased permanent role.`);
                 roleGrantedMessage = format(config.economy.shop.permaRole, {roleId: item.roleId});
             }
         } catch (error) {
             console.error("Failed to assign shop role:", error);
-            if (profile) {
-                profile.balance += totalCost;
-                await profile.save();
+
+            try {
+                await sequelize.transaction({ type: Transaction.TYPES.IMMEDIATE }, async (t) => {
+                    await EconomyProfile.increment(
+                        { balance: totalCost },
+                        { where: { guildId: interaction.guildId!, userId: interaction.user.id }, transaction: t }
+                    );
+
+                    const invItem = await Inventory.findOne({
+                        where: { guildId: interaction.guildId!, userId: interaction.user.id, itemKey },
+                        transaction: t
+                    });
+
+                    if (invItem) {
+                        if (invItem.quantity <= quantity) await invItem.destroy({ transaction: t });
+                        else await invItem.decrement({ quantity }, { transaction: t });
+                    }
+
+                    if (item.stock !== -1) {
+                        await ShopItem.increment(
+                            { stock: quantity },
+                            { where: { guildId: interaction.guildId!, itemId: itemKey }, transaction: t }
+                        );
+                    }
+
+                    if (item.roleId && item.durationDays) {
+                        const tempRole = await TempRole.findOne({
+                            where: { guildId: interaction.guildId!, userId: interaction.user.id, roleId: item.roleId },
+                            transaction: t
+                        });
+
+                        if (tempRole) {
+                            const rewound = tempRole.expiresAt.getTime() - item.durationDays * 24 * 60 * 60 * 1000;
+                            if (rewound <= Date.now()) await tempRole.destroy({ transaction: t });
+                            else {
+                                tempRole.expiresAt = new Date(rewound);
+                                await tempRole.save({ transaction: t });
+                            }
+                        }
+                    }
+                });
+            } catch (rollbackError) {
+                console.error("Refund rollback failed:", rollbackError);
             }
 
-            // Stop execution and inform the user of the failure and refund
             return void await interaction.editReply({
                 content: "❌ Failed to grant the role, refunded."
             }).catch(() => {});
@@ -822,12 +856,27 @@ async function handleUse(interaction: ChatInputCommandInteraction) {
         }).catch(() => {});
     }
 
-    invItem.quantity -= 1;
-    if (invItem.quantity <= 0) {
-        await invItem.destroy();
-    } else {
-        await invItem.save();
+    const [consumed] = await Inventory.update(
+        { quantity: Sequelize.literal("quantity - 1") as any },
+        {
+            where: {
+                guildId: interaction.guildId!,
+                userId: interaction.user.id,
+                itemKey,
+                quantity: { [Op.gt]: 0 }
+            }
+        }
+    );
+
+    if (consumed === 0) {
+        return void await interaction.editReply({
+            content: format(config.economy.inv.lack, { item: shopItem.name })
+        }).catch(() => {});
     }
+
+    await Inventory.destroy({
+        where: { guildId: interaction.guildId!, userId: interaction.user.id, itemKey, quantity: { [Op.lte]: 0 } }
+    });
 
     const customReply = shopItem.useMessage.replace(/{user}/g, `<@${interaction.user.id}>`);
 
@@ -846,13 +895,12 @@ async function handleAddMoney(interaction: ChatInputCommandInteraction) {
     let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: targetUser.id } });
     if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: targetUser.id, balance: STARTING_BALANCE });
 
-    profile.balance += amount;
-    await profile.save();
+    await profile.increment({ balance: amount });
     const replyMessage = format(config.economy.addMoney, {
         emoji: config.economy.coinEmoji,
         added: amount,
         user: targetUser.id,
-        newBalance: profile.balance
+        newBalance: profile.balance + amount
     });
 
     await interaction.editReply({ content: replyMessage });
@@ -886,13 +934,11 @@ async function handleGambleCoinflip(interaction: ChatInputCommandInteraction) {
     const isWinner = randomInt(0,2);
 
     if (isWinner == 1) {
-        profile.balance += betAmount;
-        await profile.save();
-        await interaction.editReply({ content: format(config.economy.betWin, {thing: "coin", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: profile.balance, dice: ""}) });
+        await profile.increment({ balance: betAmount });
+        await interaction.editReply({ content: format(config.economy.betWin, {thing: "coin", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: currentBalance + betAmount, dice: ""}) });
     } else {
-        profile.balance -= betAmount;
-        await profile.save();
-        await interaction.editReply({ content: format(config.economy.betLost, {dice: "", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: profile.balance}) });
+        await profile.decrement({ balance: betAmount });
+        await interaction.editReply({ content: format(config.economy.betLost, {dice: "", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: currentBalance - betAmount}) });
     }
 }
 
@@ -911,13 +957,11 @@ async function handleGambleDice(interaction: ChatInputCommandInteraction) {
 
     if (guess === diceRoll) {
         const winnings = betAmount * 5;
-        profile.balance += winnings;
-        await profile.save();
-        await interaction.editReply({ content: format(config.economy.betWin, {thing: "dice", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: profile.balance, dice: `It rolled a ${diceRoll}`}) });
+        await profile.increment({ balance: winnings });
+        await interaction.editReply({ content: format(config.economy.betWin, {thing: "dice", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: currentBalance + winnings, dice: `It rolled a ${diceRoll}`}) });
     } else {
-        profile.balance -= betAmount;
-        await profile.save();
-        await interaction.editReply({ content: format(config.economy.betLost, {dice: `The dice rolled ${diceRoll} while you guessed ${guess}`, betAmount: betAmount, emoji: config.economy.coinEmoji, balance: profile.balance}) });
+        await profile.decrement({ balance: betAmount });
+        await interaction.editReply({ content: format(config.economy.betLost, {dice: `The dice rolled ${diceRoll} while you guessed ${guess}`, betAmount: betAmount, emoji: config.economy.coinEmoji, balance: currentBalance - betAmount}) });
     }
 }
 

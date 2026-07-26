@@ -106,10 +106,9 @@ async function printSearchResultsV2(ctx: Ctx, query: string): Promise<string> {
 async function onInteraction(ctx: Ctx, interaction: Interaction) {
   if (!interaction.isChatInputCommand()) return;
 
-await interaction.deferReply()
+  await interaction.deferReply();
 
   // 2. Safe execution space
-  const query = interaction.options.getString("query", true);
   const body = await printSearchResultsV2(ctx, query);
   const pages = buildSearchEmbeds(query, body);
 

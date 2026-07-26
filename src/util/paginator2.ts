@@ -54,18 +54,22 @@ export async function paginate(
     });
 
     collector.on("collect", async (i) => {
-        if (i.customId === "prev") index = Math.max(0, index - 1);
-        else if (i.customId === "next") index = Math.min(pages.length - 1, index + 1);
-        else return;
+        try {
+            if (i.customId === "prev") index = Math.max(0, index - 1);
+            else if (i.customId === "next") index = Math.min(pages.length - 1, index + 1);
+            else return;
 
-        // Dynamically disable buttons based on the new index
-        prevButton.setDisabled(index === 0);
-        nextButton.setDisabled(index === pages.length - 1);
+            // Dynamically disable buttons based on the new index
+            prevButton.setDisabled(index === 0);
+            nextButton.setDisabled(index === pages.length - 1);
 
-        await i.update({
-            embeds: [pages[index]],
-            components: [getRow()]
-        });
+            await i.update({
+                embeds: [pages[index]],
+                components: [getRow()]
+            });
+        } catch (error) {
+            console.warn("Could not update pagination message:", error);
+        }
     });
 
     collector.on("end", async () => {

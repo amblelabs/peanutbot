@@ -149,7 +149,7 @@ export default {
             } catch (err) {
                 console.error("[Sweeper Worker Error]:", err);
             }
-        }, 10 * 1000);
+        }, 60 * 1000);
     },
 
     slash: (builder) => {
@@ -244,7 +244,7 @@ export default {
 
     onInteraction: async (ctx, interaction) => {
         if (interaction.isAutocomplete()) {
-            if (!interaction.guildId) return void await interaction.respond([]);
+            if (!interaction.guildId) return void await interaction.respond([]).catch(() => {});
 
             const sub = interaction.options.getSubcommand(false);
             const focusedValue = interaction.options.getFocused().toLowerCase();
@@ -284,27 +284,34 @@ export default {
             }
 
             if (sub === "use") {
-                const inventory = await Inventory.findAll({
-                    where: { guildId: interaction.guildId, userId: interaction.user.id }
-                });
+                try {
+                    const inventory = await Inventory.findAll({
+                        where: { guildId: interaction.guildId, userId: interaction.user.id }
+                    });
 
-                const itemMap = new Map(shopItems.map(i => [i.itemId, i.name]));
-                const validInventory = inventory.filter(inv => itemMap.has(inv.itemKey));
+                    const itemMap = new Map(shopItems.map(i => [i.itemId, i.name]));
+                    const validInventory = inventory.filter(inv => itemMap.has(inv.itemKey));
 
-                const filtered = validInventory.filter(inv => {
-                    const name = itemMap.get(inv.itemKey) || inv.itemKey;
-                    return name.toLowerCase().includes(focusedValue) || inv.itemKey.toLowerCase().includes(focusedValue);
-                });
+                    const filtered = validInventory.filter(inv => {
+                        const name = itemMap.get(inv.itemKey) || inv.itemKey;
+                        return name.toLowerCase().includes(focusedValue) || inv.itemKey.toLowerCase().includes(focusedValue);
+                    });
 
-                return void await interaction.respond(
-                    filtered.slice(0, 25).map(inv => ({
-                        name: `${itemMap.get(inv.itemKey)} (Owned: ${inv.quantity})`,
-                        value: inv.itemKey
-                    }))
-                );
+                    return void await interaction.respond(
+                        filtered.slice(0, 25).map(inv => ({
+                            name: `${itemMap.get(inv.itemKey)} (Owned: ${inv.quantity})`,
+                            value: inv.itemKey
+                        }))
+                    );
+                } catch (error: any) {
+                    if (error?.code !== 10062) {
+                        console.error("Autocomplete execution error:", error);
+                    }
+                    return;
+                }
             }
 
-            return void await interaction.respond([]);
+            return void await interaction.respond([]).catch(() => {});
         }
 
         if (!interaction.isChatInputCommand()) return;
@@ -328,57 +335,68 @@ export default {
         const sub = interaction.options.getSubcommand(true);
         const group = interaction.options.getSubcommandGroup(false);
 
-        if (group === "gamble") {
-            const hasBypassRole = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
-                interaction.member.roles.cache.has(roleId)
-            );
-            const isExplicitAdmin = interaction.inCachedGuild() && interaction.member.permissions.has("Administrator");
-
-            if (!hasBypassRole && !isExplicitAdmin && !config.economy.gambleChannel.includes(interaction.channelId)) {
-                const allowedList = config.economy.gambleChannel.map((id: string) => `<#${id}>`).join(", ");
-                return void await interaction.reply({
-                    content: `❌ Gambling commands can only be used in ${allowedList}`,
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-        }
-
-        const isEphemeral = EPHEMERAL_MAPPING[sub] ?? false;
-
         try {
-            await interaction.deferReply({
-                flags: isEphemeral ? MessageFlags.Ephemeral : undefined
-            });
-        } catch (error) {
-            console.warn(`[Economy Server] Interaction expired before deferral response could reach Discord Gateway for command: ${sub}.`);
-            return;
-        }
+            if (group === "gamble") {
+                const hasBypassRole = interaction.inCachedGuild() && config.economy.teamRole.some((roleId: string) =>
+                    interaction.member.roles.cache.has(roleId)
+                );
+                const isExplicitAdmin = interaction.inCachedGuild() && interaction.member.permissions.has("Administrator");
 
-        switch (group) {
-            case "gamble": {
-                switch (sub) {
-                    case "coinflip": return await handleGambleCoinflip(interaction);
-                    case "dice": return await handleGambleDice(interaction);
-                    case "roulette": return await handleGambleRoulette(interaction);
+                if (!hasBypassRole && !isExplicitAdmin && !config.economy.gambleChannel.includes(interaction.channelId)) {
+                    const allowedList = config.economy.gambleChannel.map((id: string) => `<#${id}>`).join(", ");
+                    return void await interaction.reply({
+                        content: `❌ Gambling commands can only be used in ${allowedList}`,
+                        flags: MessageFlags.Ephemeral
+                    });
                 }
+            }
+
+            const isEphemeral = EPHEMERAL_MAPPING[sub] ?? false;
+
+            try {
+                await interaction.deferReply({
+                    flags: isEphemeral ? MessageFlags.Ephemeral : undefined
+                });
+            } catch (error) {
+                console.warn(`[Economy Server] Interaction expired before deferral response could reach Discord Gateway for command: ${sub}.`);
                 return;
             }
 
-            case null:
-            default: {
-                switch (sub) {
-                    case "leaderboard": return await handleLeaderboard(interaction);
-                    case "wage": return await handleWage(interaction)
-                    case "balance": return await handleBalance(interaction);
-                    case "shop": return await handleShop(interaction);
-                    case "buy": return await handleBuy(interaction);
-                    case "use": return await handleUse(interaction);
-                    case "inventory": return await handleInventory(interaction);
-                    case "add-money": return await handleAddMoney(interaction);
-                    case "set-balance": return await handleSetBalance(interaction);
-                    case "refill": return await handleRefillStock(interaction)
+            switch (group) {
+                case "gamble": {
+                    switch (sub) {
+                        case "coinflip": return await handleGambleCoinflip(interaction);
+                        case "dice": return await handleGambleDice(interaction);
+                        case "roulette": return await handleGambleRoulette(interaction);
+                    }
+                    return;
                 }
-                return;
+
+                case null:
+                default: {
+                    switch (sub) {
+                        case "leaderboard": return await handleLeaderboard(interaction);
+                        case "wage": return await handleWage(interaction)
+                        case "balance": return await handleBalance(interaction);
+                        case "shop": return await handleShop(interaction);
+                        case "buy": return await handleBuy(interaction);
+                        case "use": return await handleUse(interaction);
+                        case "inventory": return await handleInventory(interaction);
+                        case "add-money": return await handleAddMoney(interaction);
+                        case "set-balance": return await handleSetBalance(interaction);
+                        case "refill": return await handleRefillStock(interaction)
+                    }
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error(`[Economy] Handler for "${sub}" failed:`, error);
+
+            const failureMessage = { content: "❌ Something went wrong running that command. Please try again." };
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply(failureMessage).catch(() => {});
+            } else {
+                await interaction.reply({ ...failureMessage, flags: MessageFlags.Ephemeral }).catch(() => {});
             }
         }
     }
@@ -411,6 +429,34 @@ function calculateWage(member: GuildMember): number {
     }
 
     return Math.max(...matchingSalaries);
+}
+
+async function fetchBalance(guildId: string, userId: string): Promise<number> {
+    return (await EconomyProfile.findOne({ where: { guildId, userId } }))?.balance ?? STARTING_BALANCE;
+}
+
+async function stakeBet(interaction: ChatInputCommandInteraction, betAmount: number): Promise<boolean> {
+    const guildId = interaction.guildId!;
+    const userId = interaction.user.id;
+
+    await EconomyProfile.findOrCreate({
+        where: { guildId, userId },
+        defaults: { guildId, userId, balance: STARTING_BALANCE }
+    });
+
+    const [staked] = await EconomyProfile.update(
+        { balance: Sequelize.literal(`balance - ${betAmount}`) as any },
+        { where: { guildId, userId, balance: { [Op.gte]: betAmount } } }
+    );
+
+    if (staked === 0) {
+        await interaction.editReply({
+            content: format(config.economy.cantAfford, { userBalance: await fetchBalance(guildId, userId) })
+        });
+        return false;
+    }
+
+    return true;
 }
 
 async function hasStaffPermission(interaction: ChatInputCommandInteraction): Promise<boolean> {
@@ -452,9 +498,25 @@ async function handleWage(interaction: ChatInputCommandInteraction) {
 
     const salaryAmount = calculateWage(interaction.member);
 
-    await profile.increment({ balance: salaryAmount });
-    profile.lastWageClaim = now;
-    await profile.save();
+    const [claimed] = await EconomyProfile.update(
+        { balance: Sequelize.literal(`balance + ${salaryAmount}`) as any, lastWageClaim: now },
+        {
+            where: {
+                guildId: interaction.guildId,
+                userId: interaction.user.id,
+                [Op.or]: [
+                    { lastWageClaim: null },
+                    { lastWageClaim: { [Op.lte]: new Date(now.getTime() - cooldownMs) } }
+                ]
+            }
+        }
+    );
+
+    if (claimed === 0) {
+        return void await interaction.editReply({
+            content: "⏳ You are still on cooldown! Please wait before claiming your next wage."
+        });
+    }
 
     await interaction.editReply({
         content: format(config.economy.wages.message, {emoji: config.economy.coinEmoji, salary: salaryAmount, balance: profile.balance + salaryAmount })
@@ -576,7 +638,12 @@ async function handleShop(interaction: ChatInputCommandInteraction) {
             getInteger: (name: string) => name === "quantity" ? 1 : null
         };
 
-        await handleBuy(buyShim as unknown as ChatInputCommandInteraction);
+        try {
+            await handleBuy(buyShim as unknown as ChatInputCommandInteraction);
+        } catch (err) {
+            console.error("[Economy Shop] Buy from shop button failed:", err);
+            await buttonInteraction.editReply({ content: "❌ Purchase failed. Please try again." }).catch(() => {});
+        }
     });
 
     collector.on("end", async () => {
@@ -924,21 +991,18 @@ async function handleSetBalance(interaction: ChatInputCommandInteraction) {
 
 async function handleGambleCoinflip(interaction: ChatInputCommandInteraction) {
     const betAmount = interaction.options.getInteger("amount", true);
-    let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: interaction.user.id } });
-    const currentBalance = profile?.balance ?? STARTING_BALANCE;
+    const guildId = interaction.guildId!;
+    const userId = interaction.user.id;
 
-    if (!(await hasSufficientFunds(interaction, currentBalance, betAmount))) return;
-
-    if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: interaction.user.id, balance: STARTING_BALANCE });
+    if (!(await stakeBet(interaction, betAmount))) return;
 
     const isWinner = randomInt(0,2);
 
     if (isWinner == 1) {
-        await profile.increment({ balance: betAmount });
-        await interaction.editReply({ content: format(config.economy.betWin, {thing: "coin", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: currentBalance + betAmount, dice: ""}) });
+        await EconomyProfile.increment({ balance: betAmount * 2 }, { where: { guildId, userId } });
+        await interaction.editReply({ content: format(config.economy.betWin, {thing: "coin", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: await fetchBalance(guildId, userId), dice: ""}) });
     } else {
-        await profile.decrement({ balance: betAmount });
-        await interaction.editReply({ content: format(config.economy.betLost, {dice: "", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: currentBalance - betAmount}) });
+        await interaction.editReply({ content: format(config.economy.betLost, {dice: "", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: await fetchBalance(guildId, userId)}) });
     }
 }
 
@@ -946,22 +1010,18 @@ async function handleGambleDice(interaction: ChatInputCommandInteraction) {
     const betAmount = interaction.options.getInteger("amount", true);
     const guess = interaction.options.getInteger("guess", true);
 
-    let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: interaction.user.id } });
-    const currentBalance = profile?.balance ?? STARTING_BALANCE;
+    const guildId = interaction.guildId!;
+    const userId = interaction.user.id;
 
-    if (!(await hasSufficientFunds(interaction, currentBalance, betAmount))) return;
-
-    if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: interaction.user.id, balance: STARTING_BALANCE });
+    if (!(await stakeBet(interaction, betAmount))) return;
 
     const diceRoll = randomInt(1, 7);
 
     if (guess === diceRoll) {
-        const winnings = betAmount * 5;
-        await profile.increment({ balance: winnings });
-        await interaction.editReply({ content: format(config.economy.betWin, {thing: "dice", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: currentBalance + winnings, dice: `It rolled a ${diceRoll}`}) });
+        await EconomyProfile.increment({ balance: betAmount * 6 }, { where: { guildId, userId } });
+        await interaction.editReply({ content: format(config.economy.betWin, {thing: "dice", betAmount: betAmount, emoji: config.economy.coinEmoji, balance: await fetchBalance(guildId, userId), dice: `It rolled a ${diceRoll}`}) });
     } else {
-        await profile.decrement({ balance: betAmount });
-        await interaction.editReply({ content: format(config.economy.betLost, {dice: `The dice rolled ${diceRoll} while you guessed ${guess}`, betAmount: betAmount, emoji: config.economy.coinEmoji, balance: currentBalance - betAmount}) });
+        await interaction.editReply({ content: format(config.economy.betLost, {dice: `The dice rolled ${diceRoll} while you guessed ${guess}`, betAmount: betAmount, emoji: config.economy.coinEmoji, balance: await fetchBalance(guildId, userId)}) });
     }
 }
 
@@ -1016,149 +1076,160 @@ async function handleGambleRoulette(interaction: ChatInputCommandInteraction) {
     const collector = thread.createMessageCollector({ filter: (m) => !m.author.bot, time: timeMs });
 
     collector.on("collect", async (message) => {
-        const args = message.content.trim().toLowerCase().split(/\s+/);
-        const commandOrType = args[0];
+        try {
+            const args = message.content.trim().toLowerCase().split(/\s+/);
+            const commandOrType = args[0];
 
-        if (commandOrType === "spin") {
-            if (message.author.id !== interaction.user.id) return void await message.react("❌").catch(() => {});
-            if (bets.length === 0) return void await message.react("❌").catch(() => {});
-            collector.stop("spun");
-            return;
-        }
+            if (commandOrType === "spin") {
+                if (message.author.id !== interaction.user.id) return void await message.react("❌").catch(() => {});
+                if (bets.length === 0) return void await message.react("❌").catch(() => {});
+                collector.stop("spun");
+                return;
+            }
 
-        const validBetTypes = ["red", "black", "even", "odd", "green"];
-        const parsedNumber = parseInt(commandOrType, 10);
-        const isNumberBet = !isNaN(parsedNumber) && parsedNumber >= 0 && parsedNumber <= 36;
+            const validBetTypes = ["red", "black", "even", "odd", "green"];
+            const parsedNumber = parseInt(commandOrType, 10);
+            const isNumberBet = !isNaN(parsedNumber) && parsedNumber >= 0 && parsedNumber <= 36;
 
-        if (validBetTypes.includes(commandOrType) || isNumberBet) {
-            const amountStr = args[1];
-            if (!amountStr) return void await message.react("❌").catch(() => {});
+            if (validBetTypes.includes(commandOrType) || isNumberBet) {
+                const amountStr = args[1];
+                if (!amountStr) return void await message.react("❌").catch(() => {});
 
-            const amount = parseInt(amountStr, 10);
-            if (isNaN(amount) || amount <= 0) return void await message.react("❌").catch(() => {});
+                const amount = parseInt(amountStr, 10);
+                if (isNaN(amount) || amount <= 0) return void await message.react("❌").catch(() => {});
 
-            let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: message.author.id } });
-            const currentBalance = profile?.balance ?? STARTING_BALANCE;
+                await EconomyProfile.findOrCreate({
+                    where: { guildId: interaction.guildId!, userId: message.author.id },
+                    defaults: { guildId: interaction.guildId!, userId: message.author.id, balance: STARTING_BALANCE }
+                });
 
-            if (currentBalance < amount) return void await message.react("❌").catch(() => {});
+                const [staked] = await EconomyProfile.update(
+                    { balance: Sequelize.literal(`balance - ${amount}`) as any },
+                    { where: { guildId: interaction.guildId!, userId: message.author.id, balance: { [Op.gte]: amount } } }
+                );
 
-            if (!profile) profile = await EconomyProfile.create({ guildId: interaction.guildId!, userId: message.author.id, balance: STARTING_BALANCE });
+                if (staked === 0) return void await message.react("❌").catch(() => {});
 
-            await profile.decrement('balance', {by: amount});
-
-            bets.push({
-                userId: message.author.id,
-                username: message.author.username,
-                amount: amount,
-                betType: isNumberBet ? "number" : (commandOrType as any),
-                betNumber: isNumberBet ? parsedNumber : undefined
-            });
-            await message.react("✅").catch(() => {});
+                bets.push({
+                    userId: message.author.id,
+                    username: message.author.username,
+                    amount: amount,
+                    betType: isNumberBet ? "number" : (commandOrType as any),
+                    betNumber: isNumberBet ? parsedNumber : undefined
+                });
+                await message.react("✅").catch(() => {});
+            }
+        } catch (err) {
+            console.error("[Roulette Bet]", err);
         }
     });
 
-    collector.on("end", async (_, reason) => {
-        if (bets.length === 0) {
-            await thread.send({ content: config.economy.roulette.inactivityMessage }).catch(() => {});
+    collector.on("end", async () => {
+        try {
+            if (bets.length === 0) {
+                await thread.send({ content: config.economy.roulette.inactivityMessage }).catch(() => {});
+                try {
+                    await thread.setLocked(true);
+                    await thread.setArchived(true);
+                } catch {}
+                return;
+            }
+
+            const winningNumber = randomInt(0, 37);
+            const redNumbers = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+            let color: "green" | "red" | "black" = "green";
+            if (winningNumber > 0) color = redNumbers.includes(winningNumber) ? "red" : "black";
+
+            const isEven = winningNumber > 0 && winningNumber % 2 === 0;
+            const isOdd = winningNumber > 0 && winningNumber % 2 !== 0;
+
+            await thread.send({ content: config.economy.roulette.spinningMessage }).catch(() => {});
+
+            const userBreakdowns = new Map<string, string[]>();
+            const userNetTotals = new Map<string, number>();
+
+            for (const bet of bets) {
+                let won = bet.betType === color || (bet.betType === "even" && isEven) || (bet.betType === "odd" && isOdd) || bet.betNumber === winningNumber;
+
+                let payoutMultiplier = (bet.betType === "number" || bet.betType === "green") ? 35 : 2;
+                let betDisplay = bet.betType === "number" ? `Number ${bet.betNumber}` : bet.betType;
+
+                const profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: bet.userId } });
+                const currentNet = userNetTotals.get(bet.userId) ?? 0;
+                if (!userBreakdowns.has(bet.userId)) userBreakdowns.set(bet.userId, []);
+
+                const formattedBetAmount = bet.amount.toLocaleString();
+
+                if (won && profile) {
+                    const winnings = bet.amount * payoutMultiplier;
+                    await profile.increment('balance', { by: winnings });
+
+                    const formattedWinnings = winnings.toLocaleString();
+                    userBreakdowns.get(bet.userId)!.push(
+                        format(config.economy.roulette.betWonLine, { betDisplay, amount: formattedWinnings })
+                    );
+                    userNetTotals.set(bet.userId, currentNet + (winnings - bet.amount));
+                } else {
+                    userBreakdowns.get(bet.userId)!.push(
+                        format(config.economy.roulette.betLostLine, { betDisplay, amount: formattedBetAmount })
+                    );
+                    userNetTotals.set(bet.userId, currentNet - bet.amount);
+                }
+            }
+
+            const emoji = color === "red" ? "🔴" : color === "black" ? "⚫" : "🟢";
+
+            let outputMessage = format(config.economy.roulette.resultHeader, {
+                number: winningNumber,
+                color: color.toUpperCase(),
+                emoji: emoji
+            });
+
+            for (const [userId, breakdownArray] of userBreakdowns.entries()) {
+                const userMention = `<@${userId}>`;
+                const netValue = userNetTotals.get(userId) ?? 0;
+                let netStatus = config.economy.roulette.brokeEven;
+
+                if (netValue > 0) {
+                    netStatus = format(config.economy.roulette.wonNet, { amount: netValue.toLocaleString() });
+                } else if (netValue < 0) {
+                    netStatus = format(config.economy.roulette.lostNet, { amount: Math.abs(netValue).toLocaleString() });
+                }
+
+                outputMessage += format(config.economy.roulette.userSummaryRow, {
+                    user: userMention,
+                    breakdown: breakdownArray.join("\n"),
+                    netStatus: netStatus
+                });
+            }
+
+            // Chunk and send outputMessage if it exceeds 1900 characters
+            const CHUNK_LIMIT = 1900;
+            const lines = outputMessage.split("\n");
+            let currentChunk = "";
+
+            for (const line of lines) {
+                if ((currentChunk + "\n" + line).length > CHUNK_LIMIT) {
+                    if (currentChunk.trim()) {
+                        await thread.send({ content: currentChunk }).catch(() => {});
+                    }
+                    currentChunk = line;
+                } else {
+                    currentChunk = currentChunk ? `${currentChunk}\n${line}` : line;
+                }
+            }
+
+            if (currentChunk.trim()) {
+                await thread.send({ content: currentChunk }).catch(() => {});
+            }
+
             try {
                 await thread.setLocked(true);
                 await thread.setArchived(true);
             } catch {}
-            return;
+        } catch (err) {
+            console.error("[Roulette Result]", err);
         }
-
-        const winningNumber = randomInt(0, 37);
-        const redNumbers = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
-        let color: "green" | "red" | "black" = "green";
-        if (winningNumber > 0) color = redNumbers.includes(winningNumber) ? "red" : "black";
-
-        const isEven = winningNumber > 0 && winningNumber % 2 === 0;
-        const isOdd = winningNumber > 0 && winningNumber % 2 !== 0;
-
-        await thread.send({ content: config.economy.roulette.spinningMessage }).catch(() => {});
-
-        const userBreakdowns = new Map<string, string[]>();
-        const userNetTotals = new Map<string, number>();
-
-        for (const bet of bets) {
-            let won = bet.betType === color || (bet.betType === "even" && isEven) || (bet.betType === "odd" && isOdd) || bet.betNumber === winningNumber;
-
-            let payoutMultiplier = (bet.betType === "number" || bet.betType === "green") ? 35 : 2;
-            let betDisplay = bet.betType === "number" ? `Number ${bet.betNumber}` : bet.betType;
-
-            const profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId!, userId: bet.userId } });
-            const currentNet = userNetTotals.get(bet.userId) ?? 0;
-            if (!userBreakdowns.has(bet.userId)) userBreakdowns.set(bet.userId, []);
-
-            const formattedBetAmount = bet.amount.toLocaleString();
-
-            if (won && profile) {
-                const winnings = bet.amount * payoutMultiplier;
-                await profile.increment('balance', { by: winnings });
-
-                const formattedWinnings = winnings.toLocaleString();
-                userBreakdowns.get(bet.userId)!.push(
-                    format(config.economy.roulette.betWonLine, { betDisplay, amount: formattedWinnings })
-                );
-                userNetTotals.set(bet.userId, currentNet + (winnings - bet.amount));
-            } else {
-                userBreakdowns.get(bet.userId)!.push(
-                    format(config.economy.roulette.betLostLine, { betDisplay, amount: formattedBetAmount })
-                );
-                userNetTotals.set(bet.userId, currentNet - bet.amount);
-            }
-        }
-
-        const emoji = color === "red" ? "🔴" : color === "black" ? "⚫" : "🟢";
-
-        let outputMessage = format(config.economy.roulette.resultHeader, {
-            number: winningNumber,
-            color: color.toUpperCase(),
-            emoji: emoji
-        });
-
-        for (const [userId, breakdownArray] of userBreakdowns.entries()) {
-            const userMention = `<@${userId}>`;
-            const netValue = userNetTotals.get(userId) ?? 0;
-            let netStatus = config.economy.roulette.brokeEven;
-
-            if (netValue > 0) {
-                netStatus = format(config.economy.roulette.wonNet, { amount: netValue.toLocaleString() });
-            } else if (netValue < 0) {
-                netStatus = format(config.economy.roulette.lostNet, { amount: Math.abs(netValue).toLocaleString() });
-            }
-
-            outputMessage += format(config.economy.roulette.userSummaryRow, {
-                user: userMention,
-                breakdown: breakdownArray.join("\n"),
-                netStatus: netStatus
-            });
-        }
-
-        // Chunk and send outputMessage if it exceeds 1900 characters
-        const CHUNK_LIMIT = 1900;
-        const lines = outputMessage.split("\n");
-        let currentChunk = "";
-
-        for (const line of lines) {
-            if ((currentChunk + "\n" + line).length > CHUNK_LIMIT) {
-                if (currentChunk.trim()) {
-                    await thread.send({ content: currentChunk }).catch(() => {});
-                }
-                currentChunk = line;
-            } else {
-                currentChunk = currentChunk ? `${currentChunk}\n${line}` : line;
-            }
-        }
-
-        if (currentChunk.trim()) {
-            await thread.send({ content: currentChunk }).catch(() => {});
-        }
-
-        try {
-            await thread.setLocked(true);
-            await thread.setArchived(true);
-        } catch {}
     });
 }
 
@@ -1236,22 +1307,15 @@ async function handleRefillStock(interaction: ChatInputCommandInteraction) {
         });
     }
 
-    let stockTracker = await ShopItem.findOne({
-        where: { guildId: interaction.guildId!, itemId: itemKey }
+    const [tracker] = await ShopItem.findOrCreate({
+        where: { guildId: interaction.guildId!, itemId: itemKey },
+        defaults: { guildId: interaction.guildId!, itemId: itemKey, stock: item.stock }
     });
 
-    if (!stockTracker) {
-        stockTracker = await ShopItem.create({
-            guildId: interaction.guildId!,
-            itemId: itemKey,
-            stock: item.stock + amount
-        });
-    } else {
-        stockTracker.stock += amount;
-        await stockTracker.save();
-    }
+    await tracker.increment({ stock: amount });
+    await tracker.reload();
 
     await interaction.editReply({
-        content: `📦 Successfully added **${amount}** stock to **${item.name}**! The shop now has **${stockTracker.stock}** available.`
+        content: `📦 Successfully added **${amount}** stock to **${item.name}**! The shop now has **${tracker.stock}** available.`
     });
 }

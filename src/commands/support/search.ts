@@ -109,32 +109,44 @@ async function printSearchResultsV2(ctx: Ctx, query: string): Promise<string> {
 async function onInteraction(ctx: Ctx, interaction: Interaction) {
     if (!interaction.isChatInputCommand()) return;
 
-    await interaction.deferReply();
+    try {
+        await interaction.deferReply();
 
-    const query = interaction.options.getString("query", true);
-    const body = await printSearchResultsV2(ctx, query);
-    const pages = buildSearchEmbeds(query, body);
+        const query = interaction.options.getString("query", true);
+        const body = await printSearchResultsV2(ctx, query);
+        const pages = buildSearchEmbeds(query, body);
 
-    await paginate(interaction, pages);
+        await paginate(interaction, pages);
+    } catch (error) {
+        console.error("[Search] Wiki search failed:", error);
+
+        if (interaction.deferred || interaction.replied) {
+            await interaction.editReply({ content: "❌ The wiki search failed. Please try again." }).catch(() => {});
+        }
+    }
 }
 
 async function searchByQuery(ctx: Ctx, message: Message, query: string) {
-    const target = message.reference ? await message.fetchReference() : message;
-    const body = await printSearchResultsV2(ctx, query);
-    const pages = buildSearchEmbeds(query, body);
+    try {
+        const target = message.reference ? await message.fetchReference() : message;
+        const body = await printSearchResultsV2(ctx, query);
+        const pages = buildSearchEmbeds(query, body);
 
-    const initialMessage = await target.reply({
-        embeds: [pages[0]]
-    });
+        const initialMessage = await target.reply({
+            embeds: [pages[0]]
+        });
 
-    const messageShimObject = {
-        user: message.author,
-        editReply: async (options: any) => {
-            return await initialMessage.edit(options);
-        },
-    } as unknown as ChatInputCommandInteraction;
+        const messageShimObject = {
+            user: message.author,
+            editReply: async (options: any) => {
+                return await initialMessage.edit(options);
+            },
+        } as unknown as ChatInputCommandInteraction;
 
-    await paginate(messageShimObject, pages);
+        await paginate(messageShimObject, pages);
+    } catch (error) {
+        console.error("[Search] Wiki search failed:", error);
+    }
 }
 
 async function execute(

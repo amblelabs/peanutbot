@@ -257,7 +257,7 @@ Consider donating to one of the following people:
     },
     wages: {
       message: "{emoji} You worked a hard shift and claimed your wage of **${salary}**!\n🏦 **New Balance:** ${balance}",
-      defaultAmount: 0,
+      defaultAmount: 50,
       roleSalaries: {
         "1262624821582364703": 500,
       }

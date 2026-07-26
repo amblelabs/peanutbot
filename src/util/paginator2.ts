@@ -54,8 +54,9 @@ export async function paginate(
     });
 
     collector.on("collect", async (i) => {
-        if (i.customId === "prev") index--;
-        else if (i.customId === "next") index++;
+        if (i.customId === "prev") index = Math.max(0, index - 1);
+        else if (i.customId === "next") index = Math.min(pages.length - 1, index + 1);
+        else return;
 
         // Dynamically disable buttons based on the new index
         prevButton.setDisabled(index === 0);

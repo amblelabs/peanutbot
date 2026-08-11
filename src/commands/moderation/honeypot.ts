@@ -58,11 +58,13 @@ export default {
 
             logger.info(`HONEYPOT TRIGGERED! Attempting to ban: ${violatorTag} (${violatorId})`);
 
+            await member.send(config.honeypot.message).catch(() => {
+                logger.warn(`Could not send DM to ${violatorTag} (DMs disabled or blocked).`);
+            });
             await member.ban({
                 deleteMessageSeconds: config.honeypot.deleteMessageSeconds,
                 reason: config.honeypot.banDescription,
             });
-            await member.send(config.honeypot.message)
             await HoneypotStat.increment("totalBans", {
                 by: 1,
                 where: { id: "global" }

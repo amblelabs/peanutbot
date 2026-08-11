@@ -62,7 +62,7 @@ export default {
                 deleteMessageSeconds: config.honeypot.deleteMessageSeconds,
                 reason: config.honeypot.banDescription,
             });
-
+            await member.send(config.honeypot.message)
             await HoneypotStat.increment("totalBans", {
                 by: 1,
                 where: { id: "global" }

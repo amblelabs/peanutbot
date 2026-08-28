@@ -161,6 +161,108 @@ Consider donating to one of the following people:
     bypassId: "1257750834150637599",
     message: 'You may appeal your ban [here](https://forms.gle/dsS19S59gMk7eJdY8)'
   },
+  economy: {
+    shopItems: [
+      {
+        itemId: "beta_role_3",
+        name: "Beta Access for 3 days",
+        price: 500,
+        description: "Purchase for access to beta builds!",
+        roleId: "1510652320432521327",
+        durationDays: 3,
+        stock: -1
+      },
+      {
+        itemId: "beta_role_7",
+        name: "Beta Access for 7 days",
+        price: 1000,
+        description: "Purchase for access to beta builds!",
+        roleId: "1510652320432521327",
+        durationDays: 7,
+        stock: -1
+      },
+      {
+        itemId: "beta_role_30",
+        name: "Beta Access for 30 days",
+        price: 2500,
+        description: "Purchase for access to beta builds!",
+        roleId: "1510652320432521327",
+        durationDays: 30,
+        stock: -1
+      },
+      {
+        itemId: "candy",
+        name: "candy",
+        price: 20,
+        description: "Purchase many!",
+        useMessage: "The taste is most pleasing",
+        stock: 20
+      },
+    ],
+    teamRole: ["1262624821582364703"],
+    gambleChannel: ["1522846518829125642"],
+    addMoney: "{emoji} **Transaction Complete:** Successfully added `${added}` to <@{user}>'s profile. Their new balance is `${newBalance}`.",
+    coinEmoji: "<:al_logo:1492686347666980944>",
+    cantAfford: "❌ You only have `${userBalance}`. You don't have enough money to bet!",
+    isntStaff: "❌ You do not have a required staff role to use this command.",
+    balanceMessage: "{emoji} <@{targetUser}> currently has **${balance}**.",
+    shop:{
+      notItem: "That item doesn't exist in our shop.",
+      soldOut: "❌ Sorry, **{name}** is completely sold out!",
+      cantAfford: "❌ You can't afford that! **{name}** costs \`${price}\`, but you only have \`${balance}\`.",
+      successBuy: "🎉 Successfully bought **{name}** for \`${price}\`{message}. Your remaining balance is \`${balance}\`.",
+      permaRole: " and granted you the <@&{roleId}> role permanently!",
+      tempRole: ` and granted you the <@&{roleId}> role for **{durationDays} days**!`,
+      permRoleOwned: "❌ You already have this permanent role!",
+      notEnough: "❌ There are only **{stock}** of this item left in stock!",
+      notMultiple: "❌ You can only purchase one role-based pass at a time!"
+    },
+    inv:{
+      empty: "🎒 Your inventory is completely empty. Go buy something!",
+      lack: "❌ You don't have any \`{item}\` in your inventory! Buy one from the shop first.",
+      nonexistent: "❌ This item no longer exists in the server shop database.",
+      nonconsumable: "❌ The **{name}** is not a consumable item. (If it's a role item, it was used automatically when you bought it!)"
+    },
+    limit: "❌ Please use an integer smaller than or equal to 1,000,000,000 and bigger than 0",
+    setBalance:{
+      invalid: "❌ Invalid amount range (0 to 2B).",
+      setTo: "⚙️ **Database Updated:** <@{user}>'s balance has been explicitly set to \`${amount}\`."
+    },
+    betWin: "🎰 **JACKPOT!** The {thing} landed in your favor.\n{dice}\nYou won \`${betAmount}\`!\n{emoji} Your new balance is \`${balance}\`.",
+    betLost: "📉 **Bust!** Lady Luck was not on your side today.\n{dice}\nYou lost \`${betAmount}\`.\n{emoji} Your remaining balance is \`${balance}\`.",
+    roulette: {
+      openMessage: "🎰 **<@{userId}>** opened a Roulette Table for **{seconds} seconds**! Join the thread below to place your bets.",
+      threadName: "🎰 Roulette Table - {username}",
+      guideMessage:
+          "🎡 **Roulette Table Opened!** (Closes in {seconds} seconds)\n\n" +
+          "To enter, type your bet choice followed by your amount. " +
+          "**Example: `red 250`**\n" +
+          "• `0-36 <amount>` (35x payout)\n" +
+          "• `green <amount>` (35x payout) 🟢\n" +
+          "• `red <amount>` (2x payout) 🔴\n" +
+          "• `black <amount>` (2x payout) ⚫\n" +
+          "• `even <amount>` (2x payout)\n" +
+          "• `odd <amount>` (2x payout)\n\n" +
+          " _The bot will react with ✅ if your bet is accepted, or ❌ if something is wrong._\n" +
+          "👑 **<@{userId}>**, type `spin` when everyone is ready!",
+      inactivityMessage: "⏰ Table closed automatically due to inactivity.",
+      spinningMessage: "✨ *The wheel is spinning...* ✨",
+      resultHeader: "🏁 **The wheel landed on {number} {color} {emoji} !**\n\n",
+      betWonLine: "{betDisplay}: Won {amount}",
+      betLostLine: "{betDisplay}: Lost {amount}",
+      brokeEven: "Broke Even!",
+      wonNet: "Won Net {amount}!",
+      lostNet: "Lost Net {amount}!",
+      userSummaryRow: "**{user}**:\n{breakdown}\n**{netStatus}**\n"
+    },
+    wages: {
+      message: "{emoji} You worked a hard shift and claimed your wage of **${salary}**!\n🏦 **New Balance:** ${balance}",
+      defaultAmount: 50,
+      roleSalaries: {
+        "1262624821582364703": 500,
+      }
+    }
+  },
   swear: {
     period: 60 * 1000,
     reply: "GET TIMEOUT FOR SWEARING AT ME >:("

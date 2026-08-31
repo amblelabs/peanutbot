@@ -24,7 +24,7 @@ async function execute(ctx: Ctx, message: Message, channel: SendableChannels, ar
             await message.reply(makeReplyNyx());
             break
 case ('skye'):
-            await message.reply(makeReplyNyx());
+            await message.reply(makeReplySkye());
             break
 
     }

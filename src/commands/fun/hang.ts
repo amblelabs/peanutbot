@@ -17,6 +17,9 @@ async function execute(ctx: Ctx, message: Message, channel: SendableChannels, ar
         case ('kelly'):
             await message.reply(makeReply());
             break
+        case ('nyx'):
+            await message.reply(makeReply());
+            break
     }
 }
 

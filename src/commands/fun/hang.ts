@@ -10,7 +10,14 @@ function makeReply(): string {
 }
 
 async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
-    if (args[0] === 'jelly') await message.reply(makeReply());
+    switch(args[0]) {
+        case ('jelly'):
+            await message.reply(makeReply());
+            break;
+        case ('kelly'):
+            await message.reply(makeReply());
+            break
+    }
 }
 
 export default {

@@ -15,15 +15,11 @@ function makeReplyNyx(): string {
 async function execute(ctx: Ctx, message: Message, channel: SendableChannels, args: string[]) {
     switch(args[0]) {
         case ('jelly'):
-            await message.reply(makeReplyNyx());
-            break;
         case ('kelly'):
-            await message.reply(makeReplyNyx());
-            break
         case ('nyx'):
             await message.reply(makeReplyNyx());
             break
-case ('skye'):
+        case ('skye'):
             await message.reply(makeReplySkye());
             break
 

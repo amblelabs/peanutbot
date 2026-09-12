@@ -161,7 +161,7 @@ ctx.client.on(Events.MessageCreate, async (message) => {
     }
 
     for (const handler of Object.values(handlers)) {
-      if (handler?.onMessage) handler.onMessage(ctx, message);
+      if (handler?.onMessage) await handler.onMessage(ctx, message);
     }
 
     return;

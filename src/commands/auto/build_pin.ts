@@ -6,15 +6,6 @@ import {
 } from "discord.js";
 import type { Cmd, Ctx } from "~/util/base";
 
-// 1. Flexible Webhook Header Regex (Handles bolding, link wrappers, custom tags, and emojis)
-// Matches: **Stargate: Sojourner** (**SGS**) dev build [#166]
-// Matches: **AIT** dev build `#2751`
-const HEADER_REGEX = /\*\*(.+?)\*\*(?:\s*[\(\[`]?\*\*?([^\*\n\)\n\]]+)\*\*?[\)\]`]?)*?\s*dev\s+build\s*.*?#(\d+)/i;
-
-// 2. Flexible JAR Regex
-// Matches: stargate-fabric-0.0.0-sojourner-dev.165+mc.1.21.1.jar
-const JAR_REGEX = /([a-zA-Z0-9_\-]+?)(?:-(\d+\.\d+(?:\.\d+)?))?-([a-zA-Z0-9_\-]+?)-dev\.(\d+)(?:\+mc\.([a-zA-Z0-9_\.]+))?\.jar/i;
-
 interface BuildInfo {
     modName: string;
     branch: string;
@@ -25,14 +16,15 @@ interface BuildInfo {
 
 function parseBuildInfo(message: Message): BuildInfo | null {
     const textSources: { source: string; text: string }[] = [
+        ...message.attachments.map((att) => ({ source: `attachment: ${att.name}`, text: att.name || "" })),
         { source: "content", text: message.content || "" },
-        ...message.attachments.map((att) => ({ source: "attachment", text: att.name || "" })),
-        ...message.embeds.flatMap((embed) => [
-            { source: "embed title", text: embed.title || "" },
-            { source: "embed desc", text: embed.description || "" },
+        ...message.embeds.flatMap((embed, idx) => [
+            { source: `embed[${idx}].title`, text: embed.title || "" },
+            { source: `embed[${idx}].description`, text: embed.description || "" },
+            { source: `embed[${idx}].url`, text: embed.url || "" },
             ...embed.fields.flatMap((f) => [
-                { source: "embed field name", text: f.name },
-                { source: "embed field val", text: f.value },
+                { source: `embed[${idx}].field.name`, text: f.name },
+                { source: `embed[${idx}].field.value`, text: f.value },
             ]),
         ]),
     ];
@@ -40,37 +32,51 @@ function parseBuildInfo(message: Message): BuildInfo | null {
     for (const { text } of textSources) {
         if (!text) continue;
 
-        // Try JAR filename match first
-        const jarMatch = text.match(JAR_REGEX);
-        if (jarMatch) {
-            const [, rawMod, _ver, branch, buildStr, mcVer] = jarMatch;
-            const buildNum = parseInt(buildStr, 10);
-            const modName = rawMod.toLowerCase();
-            const branchName = branch.toLowerCase();
-            const mc = mcVer ? mcVer.toLowerCase() : "";
-            const buildKey = mc ? `${modName}:${branchName}:${mc}` : `${modName}:${branchName}`;
+        const lowerText = text.toLowerCase();
+        if (!lowerText.includes(".jar") || !lowerText.includes("-dev.")) continue;
 
-            return { modName, branch: branchName, buildNum, mcVersion: mc, buildKey };
-        }
+        const jarMatches = text.match(/[a-zA-Z0-9_\-\.\+\?=\&]+\.jar(?:\?[^\s]+)?/gi);
+        if (!jarMatches) continue;
 
-        // Try Webhook text header match second
-        const headerMatch = text.match(HEADER_REGEX);
-        if (headerMatch) {
-            const [, rawMod, tag, buildStr] = headerMatch;
-            const buildNum = parseInt(buildStr, 10);
+        for (const raw of jarMatches) {
+            const filename = raw.split("?")[0];
 
-            let modName = rawMod.toLowerCase().trim();
-            let branchName = tag ? tag.toLowerCase().trim() : "main";
+            const devMatch = filename.match(/^(.+?)-dev\.(\d+)(?:(?:\+|-)??mc\.([a-zA-Z0-9_\.]+))?\.jar$/i);
+            if (!devMatch) continue;
 
-            // Handle "Mod: Branch" format in title (e.g. "Stargate: Sojourner")
-            if (modName.includes(":")) {
-                const parts = modName.split(":");
-                modName = parts[0].trim();
-                branchName = parts[1].trim();
+            const base = devMatch[1];
+            const buildNum = parseInt(devMatch[2], 10);
+            const mcVersion = devMatch[3] ? devMatch[3].toLowerCase().trim() : undefined;
+
+            let modName = "";
+            let branch = "main";
+
+            const verMatch = base.match(/-(\d+\.\d+(?:\.\d+)?)(?:-|$)/);
+            if (verMatch && verMatch.index !== undefined) {
+                modName = base.slice(0, verMatch.index).toLowerCase().trim();
+                const rawBranch = base.slice(verMatch.index + verMatch[0].length).toLowerCase().trim();
+                if (rawBranch) branch = rawBranch;
+            } else {
+                const parts = base.split("-");
+                if (parts.length > 1) {
+                    modName = parts[0].toLowerCase().trim();
+                    branch = parts.slice(1).join("-").toLowerCase().trim();
+                } else {
+                    modName = base.toLowerCase().trim();
+                }
             }
 
-            const buildKey = `${modName}:${branchName}`;
-            return { modName, branch: branchName, buildNum, buildKey };
+            const buildKey = mcVersion
+                ? `${modName}:${branch}:${mcVersion}`
+                : `${modName}:${branch}`;
+
+            return {
+                modName,
+                branch,
+                buildNum,
+                mcVersion,
+                buildKey,
+            };
         }
     }
 
@@ -79,30 +85,27 @@ function parseBuildInfo(message: Message): BuildInfo | null {
 
 async function evaluateAndPinMessage(message: Message): Promise<boolean> {
     const newBuild = parseBuildInfo(message);
+    if (!newBuild) return false;
 
-    if (!newBuild) {
+    if (!("messages" in message.channel) || typeof message.channel.messages.fetchPinned !== "function") {
+        console.error(`[AutoPin Error] Channel ${message.channelId} does not support fetching pinned messages.`);
         return false;
     }
-
-    console.log(
-        `[AutoPin Match] Found build: Key="${newBuild.buildKey}", Run=#${newBuild.buildNum} (Msg ID: ${message.id})`
-    );
-
-    if (!("fetchPinned" in message.channel)) return false;
 
     try {
         const pinnedMessages = await message.channel.messages.fetchPinned();
         let shouldPinNew = true;
 
         for (const pinnedMsg of pinnedMessages.values()) {
+            if (pinnedMsg.id === message.id) continue;
+
             const pinnedBuild = parseBuildInfo(pinnedMsg);
             if (!pinnedBuild) continue;
 
             if (newBuild.buildKey === pinnedBuild.buildKey) {
                 if (newBuild.buildNum > pinnedBuild.buildNum) {
-                    console.log(`[AutoPin Unpin] Unpinning older build #${pinnedBuild.buildNum}`);
                     await pinnedMsg.unpin().catch((err) =>
-                        console.error(`Failed to unpin message ${pinnedMsg.id}:`, err)
+                        console.error(`❌ [AutoPin Error] Failed to unpin message ${pinnedMsg.id}:`, err)
                     );
                 } else {
                     shouldPinNew = false;
@@ -112,11 +115,10 @@ async function evaluateAndPinMessage(message: Message): Promise<boolean> {
 
         if (shouldPinNew && !message.pinned) {
             await message.pin();
-            console.log(`📌 [AutoPin Success] Pinned message ${message.id} for ${newBuild.buildKey} #${newBuild.buildNum}`);
             return true;
         }
     } catch (error) {
-        console.error(`❌ [AutoPin Error] Could not pin message ${message.id}:`, error);
+        console.error(`❌ [AutoPin Error] Could not complete pin evaluation for message ${message.id}:`, error);
     }
 
     return false;
@@ -126,21 +128,74 @@ async function scanChannelBuilds(
     channel: SendableChannels | any,
     limit: number = 50
 ): Promise<{ scanned: number; updated: number }> {
-    if (!channel || !("messages" in channel)) return { scanned: 0, updated: 0 };
-
-    console.log(`🔍 [AutoPin Scan] Fetching last ${limit} messages in channel ${channel.id}...`);
-    const fetched = await channel.messages.fetch({ limit });
-    const sortedMessages = [...fetched.values()].sort(
-        (a: Message, b: Message) => a.createdTimestamp - b.createdTimestamp
-    );
-
-    let updatedCount = 0;
-    for (const msg of sortedMessages) {
-        const updated = await evaluateAndPinMessage(msg);
-        if (updated) updatedCount++;
+    if (!channel || !("messages" in channel) || typeof channel.messages.fetchPinned !== "function") {
+        console.error(`[AutoPin Scan Error] Invalid or unsupported channel object:`, channel);
+        return { scanned: 0, updated: 0 };
     }
 
-    return { scanned: sortedMessages.length, updated: updatedCount };
+    let fetchedMessages;
+    let pinnedMessages;
+
+    try {
+        // Fetch both scan window and existing pins in parallel
+        [fetchedMessages, pinnedMessages] = await Promise.all([
+            channel.messages.fetch({ limit }),
+            channel.messages.fetchPinned(),
+        ]);
+    } catch (err) {
+        console.error(`❌ [AutoPin Scan Error] Failed to fetch channel messages:`, err);
+        return { scanned: 0, updated: 0 };
+    }
+
+    // Step 1: "Think First" — Group fetched messages and find the highest build for each key
+    const latestScannedMap = new Map<string, { info: BuildInfo; msg: Message }>();
+    for (const msg of fetchedMessages.values()) {
+        const info = parseBuildInfo(msg);
+        if (!info) continue;
+
+        const existing = latestScannedMap.get(info.buildKey);
+        if (!existing || info.buildNum > existing.info.buildNum) {
+            latestScannedMap.set(info.buildKey, { info, msg });
+        }
+    }
+
+    // Step 2: Group existing channel pins by buildKey
+    const currentPinsMap = new Map<string, { info: BuildInfo; msg: Message }>();
+    for (const msg of pinnedMessages.values()) {
+        const info = parseBuildInfo(msg);
+        if (!info) continue;
+        currentPinsMap.set(info.buildKey, { info, msg });
+    }
+
+    let updatedCount = 0;
+
+    // Step 3: "Pin Later" — Perform single pin/unpin action only for final winners
+    for (const [buildKey, scanned] of latestScannedMap.entries()) {
+        const pinned = currentPinsMap.get(buildKey);
+
+        if (!pinned) {
+            // New build track found that isn't pinned yet
+            if (!scanned.msg.pinned) {
+                await scanned.msg.pin().catch((err) =>
+                    console.error(`❌ [AutoPin Error] Failed to pin message ${scanned.msg.id}:`, err)
+                );
+                updatedCount++;
+            }
+        } else if (scanned.info.buildNum > pinned.info.buildNum) {
+            // Scanned build strictly replaces the pinned build
+            await pinned.msg.unpin().catch((err) =>
+                console.error(`❌ [AutoPin Error] Failed to unpin message ${pinned.msg.id}:`, err)
+            );
+            if (!scanned.msg.pinned) {
+                await scanned.msg.pin().catch((err) =>
+                    console.error(`❌ [AutoPin Error] Failed to pin message ${scanned.msg.id}:`, err)
+                );
+            }
+            updatedCount++;
+        }
+    }
+
+    return { scanned: fetchedMessages.size, updated: updatedCount };
 }
 
 export default {
@@ -188,7 +243,7 @@ export default {
         try {
             await evaluateAndPinMessage(message);
         } catch (error) {
-            console.error(`❌ AutoPin Error:`, error);
+            console.error(`❌ AutoPin Listener Error:`, error);
         }
     },
 } as Cmd;

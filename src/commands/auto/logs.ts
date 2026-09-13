@@ -61,14 +61,14 @@ export default {
 
             if (!webhook) {
                 webhook = await (targetChannel as TextChannel | NewsChannel | VoiceChannel).createWebhook({
-                    name: "Log Auto-Uploader",
+                    name: "auto mclogs",
                 });
             }
 
             const userText = message.content.trim();
             const content = userText
                 ? `${userText}\n**Log uploaded:** ${mclogsUrl}`
-                : `📄 **Log uploaded:** ${mclogsUrl}`;
+                : `**Log uploaded:** ${mclogsUrl}`;
 
             await webhook.send({
                 content,

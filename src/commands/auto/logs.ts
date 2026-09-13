@@ -1,5 +1,6 @@
 import zlib from "node:zlib";
-import type { Message, TextChannel, NewsChannel, VoiceChannel, ThreadChannel } from "discord.js";
+import { Message, NewsChannel, TextChannel, VoiceChannel } from "discord.js";
+import type { Cmd, Ctx } from "~/util/base";
 
 async function uploadToMclogs(logContent: string): Promise<string | null> {
     try {
@@ -19,67 +20,66 @@ async function uploadToMclogs(logContent: string): Promise<string | null> {
     }
 }
 
-export async function handleLogAttachment(message: Message): Promise<void> {
-    if (message.author.bot || !message.attachments.size) return;
+export default {
+    data: { name: "loguploader" },
 
-    const logAttachment = message.attachments.find((att) => {
-        const name = (att.name || "").toLowerCase();
-        return name.endsWith(".log") || name.endsWith(".log.gz") || name.endsWith(".txt");
-    });
+    onMessage: async (ctx: Ctx, message: Message) => {
+        if (message.author.bot || !message.attachments.size) return;
 
-    if (!logAttachment) return;
-
-    try {
-        const res = await fetch(logAttachment.url);
-        if (!res.ok) return;
-
-        const buffer = Buffer.from(await res.arrayBuffer());
-        let logText: string;
-
-        if (logAttachment.name?.toLowerCase().endsWith(".gz")) {
-            logText = zlib.gunzipSync(buffer).toString("utf-8");
-        } else {
-            logText = buffer.toString("utf-8");
-        }
-
-        if (!logText.trim()) return;
-
-        const mclogsUrl = await uploadToMclogs(logText);
-        if (!mclogsUrl) return;
-
-        // Determine channel type and retrieve parent channel if in a thread
-        const channel = message.channel;
-        const targetChannel = channel.isThread() ? channel.parent : channel;
-
-        if (!targetChannel || !("createWebhook" in targetChannel)) return;
-
-        // Fetch existing webhooks created by this bot or create a new one to reuse
-        const webhooks = await targetChannel.fetchWebhooks();
-        let webhook = webhooks.find((wh) => wh.owner?.id === message.client.user?.id);
-
-        if (!webhook) {
-            webhook = await (targetChannel as TextChannel | NewsChannel | VoiceChannel).createWebhook({
-                name: "Log Auto-Uploader",
-            });
-        }
-
-        // Construct content preserving any original user text message
-        const userText = message.content.trim();
-        const content = userText
-            ? `${userText}\n📄 **Log uploaded:** ${mclogsUrl}`
-            : `📄 **Log uploaded:** ${mclogsUrl}`;
-
-        // Send via webhook using the uploader's display name and avatar
-        await webhook.send({
-            content,
-            username: message.member?.displayName || message.author.username,
-            avatarURL: message.author.displayAvatarURL(),
-            threadId: channel.isThread() ? channel.id : undefined,
+        const logAttachment = message.attachments.find((att) => {
+            const name = (att.name || "").toLowerCase();
+            return name.endsWith(".log") || name.endsWith(".log.gz") || name.endsWith(".txt");
         });
 
-        // Delete the original message containing the raw file attachment
-        await message.delete().catch(() => {});
-    } catch (err) {
-        console.error(`❌ Error processing log attachment in message ${message.id}:`, err);
-    }
-}
+        if (!logAttachment) return;
+
+        try {
+            const res = await fetch(logAttachment.url);
+            if (!res.ok) return;
+
+            const buffer = Buffer.from(await res.arrayBuffer());
+            let logText: string;
+
+            if (logAttachment.name?.toLowerCase().endsWith(".gz")) {
+                logText = zlib.gunzipSync(buffer).toString("utf-8");
+            } else {
+                logText = buffer.toString("utf-8");
+            }
+
+            if (!logText.trim()) return;
+
+            const mclogsUrl = await uploadToMclogs(logText);
+            if (!mclogsUrl) return;
+
+            const channel = message.channel;
+            const targetChannel = channel.isThread() ? channel.parent : channel;
+
+            if (!targetChannel || !("createWebhook" in targetChannel)) return;
+
+            const webhooks = await targetChannel.fetchWebhooks();
+            let webhook = webhooks.find((wh) => wh.owner?.id === message.client.user?.id);
+
+            if (!webhook) {
+                webhook = await (targetChannel as TextChannel | NewsChannel | VoiceChannel).createWebhook({
+                    name: "Log Auto-Uploader",
+                });
+            }
+
+            const userText = message.content.trim();
+            const content = userText
+                ? `${userText}\n**Log uploaded:** ${mclogsUrl}`
+                : `📄 **Log uploaded:** ${mclogsUrl}`;
+
+            await webhook.send({
+                content,
+                username: message.member?.displayName || message.author.username,
+                avatarURL: message.author.displayAvatarURL(),
+                threadId: channel.isThread() ? channel.id : undefined,
+            });
+
+            await message.delete().catch(() => {});
+        } catch (err) {
+            console.error(`❌ Error processing log attachment in message ${message.id}:`, err);
+        }
+    },
+} as Cmd;

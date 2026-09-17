@@ -258,9 +258,19 @@ Consider donating to one of the following people:
     wages: {
       message: "{emoji} You worked a hard shift and claimed your wage of **${salary}**!\n🏦 **New Balance:** ${balance}",
       defaultAmount: 50,
+      defaultCooldown: 60*60*24,
       roleSalaries: {
-        "1262624821582364703": 500,
+        "1262624821582364703": [500, 60],
+
       }
+    },
+    transfer:{
+      self_transfer: "You cannot transfer money to yourself!",
+      bot_transfer: "You cannot transfer money to bots!",
+      negative_transfer: "You must transfer a positive amount of money.",
+      database_error: "Database error.",
+      success: "**<@{senderId}>** transferred **{amount}** {emoji} to **<@{targetId}>**!\n" +
+               "Your new balance is **{newSenderBalance}** {emoji}"
     }
   },
   swear: {

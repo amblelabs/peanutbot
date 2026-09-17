@@ -256,11 +256,25 @@ Consider donating to one of the following people:
       userSummaryRow: "**{user}**:\n{breakdown}\n**{netStatus}**\n"
     },
     wages: {
-      message: "{emoji} You worked a hard shift and claimed your wage of **${salary}**!\n🏦 **New Balance:** ${balance}",
+      message: "**Collected Wage!** (+{totalPayout} {emoji})\n\n{claimedLines}{pendingSection}\n\n **New Balance:** {balance} {emoji}",
+      pendingSection: "\n\n**Still on Cooldown:**\n{pendingLines}",
+      allOnCooldown: "**All your salaries are currently on cooldown!**\n\n{pendingLines}",
+      claimedLine: "• **{name}**: +{salary} {emoji}",
+      pendingLine: "• **{name}**: Ready <t:{readyUnix}:R>",
       defaultAmount: 50,
+      defaultCooldown: 60*60*24,
       roleSalaries: {
-        "1262624821582364703": 500,
+        "1262624821582364703": [500, 60],
+
       }
+    },
+    transfer:{
+      self_transfer: "You cannot transfer money to yourself!",
+      bot_transfer: "You cannot transfer money to bots!",
+      negative_transfer: "You must transfer a positive amount of money.",
+      database_error: "Database error.",
+      success: "**<@{senderId}>** transferred **{amount}** {emoji} to **<@{targetId}>**!\n" +
+               "Your new balance is **{newSenderBalance}** {emoji}"
     }
   },
   swear: {

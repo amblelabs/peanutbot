@@ -69,7 +69,16 @@ export class TempRole extends Model<InferAttributes<TempRole>, InferCreationAttr
     declare roleId: string;
     declare expiresAt: Date;
 }
-
+export class UserRoleWage extends Model<
+    InferAttributes<UserRoleWage>,
+    InferCreationAttributes<UserRoleWage>
+> {
+    declare id: CreationOptional<number>;
+    declare guildId: string;
+    declare userId: string;
+    declare roleId: string;
+    declare lastClaim: Date;
+}
 const STARTING_BALANCE = 10;
 const WAGE_COOLDOWN_HOURS = 24;
 
@@ -123,7 +132,16 @@ export default {
             },
             { sequelize: ctx.sql }
         );
-
+        UserRoleWage.init(
+            {
+                id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+                guildId: { type: DataTypes.STRING, allowNull: false },
+                userId: { type: DataTypes.STRING, allowNull: false },
+                roleId: { type: DataTypes.STRING, allowNull: false },
+                lastClaim: { type: DataTypes.DATE, allowNull: false },
+            },
+            { sequelize: ctx.sql }
+        );
         EconomyProfile.hasMany(Inventory, { foreignKey: "userId", sourceKey: "userId", onDelete: "CASCADE" });
         Inventory.belongsTo(EconomyProfile, { foreignKey: "userId", targetKey: "userId" });
 
@@ -477,67 +495,134 @@ function getMemberWageConfig(member: GuildMember) {
     let bestSalary = defaultSalary;
     let bestCooldown = defaultCooldown;
 
-    const roleSalaries = config.economy.wages.roleSalaries as Record<string, number[]>;
-
+    const roleSalaries = config.economy.wages.roleSalaries as Record<string, number | number[]> | undefined;
     if (roleSalaries) {
-        for (const [roleId, [salary, cooldown]] of Object.entries(roleSalaries)) {
-            if (member.roles.cache.has(roleId)) {
-                if (salary > bestSalary) bestSalary = salary;
-                if (cooldown < bestCooldown) bestCooldown = cooldown;
+        for (const [roleId, value] of Object.entries(roleSalaries)) {
+            if (!member.roles.cache.has(roleId)) continue;
+            const [salary, cooldown] = Array.isArray(value)
+                ? [value[0] ?? defaultSalary, value[1] ?? defaultCooldown]
+                : [value, defaultCooldown];
+            // Pick the role with the highest salary; break ties by shorter cooldown
+            if (salary > bestSalary || (salary === bestSalary && cooldown < bestCooldown)) {
+                bestSalary = salary;
+                bestCooldown = cooldown;
             }
         }
     }
-
     return { salaryAmount: bestSalary, cooldownSeconds: bestCooldown };
 }
 
 async function handleWage(interaction: ChatInputCommandInteraction) {
     if (!interaction.inCachedGuild()) return;
 
-    let profile = await EconomyProfile.findOne({ where: { guildId: interaction.guildId, userId: interaction.user.id } });
-    if (!profile) {
-        profile = await EconomyProfile.create({ guildId: interaction.guildId, userId: interaction.user.id, balance: STARTING_BALANCE });
-    }
+    const guildId = interaction.guildId;
+    const userId = interaction.user.id;
+    const member = interaction.member;
 
-    const { salaryAmount, cooldownSeconds } = getMemberWageConfig(interaction.member);
-    const cooldownMs = cooldownSeconds * 1000;
-    const now = new Date();
+    const defaultSalary = config.economy.wages.defaultAmount ?? 50;
+    const defaultCooldown = config.economy.wages.defaultCooldown ?? 86400;
+    const roleSalaries = (config.economy.wages.roleSalaries || {}) as Record<string, number | number[]>;
 
-    if (profile.lastWageClaim) {
-        const timeSinceLastClaim = now.getTime() - profile.lastWageClaim.getTime();
-        if (timeSinceLastClaim < cooldownMs) {
-            const remainingSeconds = Math.ceil((cooldownMs - timeSinceLastClaim) / 1000);
-            const nextClaimUnix = Math.floor((profile.lastWageClaim.getTime() + cooldownMs) / 1000);
+    const qualifiedWages: Array<{ roleId: string; name: string; salary: number; cooldownSeconds: number }> = [];
 
-            return void await interaction.editReply({
-                content: `⏳ You are still on cooldown! Your next wage collection will be in (<t:${nextClaimUnix}:R>)`
+    for (const [roleId, value] of Object.entries(roleSalaries)) {
+        if (member.roles.cache.has(roleId)) {
+            const [salary, cooldown] = Array.isArray(value)
+                ? [value[0] ?? defaultSalary, value[1] ?? defaultCooldown]
+                : [value, defaultCooldown];
+            const roleObj = member.roles.cache.get(roleId);
+            qualifiedWages.push({
+                roleId,
+                name: roleObj ? roleObj.name : `Role (${roleId})`,
+                salary,
+                cooldownSeconds: cooldown
             });
         }
     }
 
-    const [claimed] = await EconomyProfile.update(
-        { balance: Sequelize.literal(`balance + ${salaryAmount}`) as any, lastWageClaim: now },
-        {
-            where: {
-                guildId: interaction.guildId,
-                userId: interaction.user.id,
-                [Op.or]: [
-                    { lastWageClaim: null },
-                    { lastWageClaim: { [Op.lte]: new Date(now.getTime() - cooldownMs) } }
-                ]
-            }
-        }
-    );
-
-    if (claimed === 0) {
-        return void await interaction.editReply({
-            content: "⏳ You are still on cooldown! Please wait before claiming your next wage."
+    if (qualifiedWages.length === 0) {
+        qualifiedWages.push({
+            roleId: "default",
+            name: "Base Salary",
+            salary: defaultSalary,
+            cooldownSeconds: defaultCooldown
         });
     }
 
-    await interaction.editReply({
-        content: format(config.economy.wages.message, { emoji: config.economy.coinEmoji, salary: salaryAmount, balance: profile.balance + salaryAmount })
+    const existingClaims = await UserRoleWage.findAll({ where: { guildId, userId } });
+    const claimMap = new Map(existingClaims.map(c => [c.roleId, c.lastClaim]));
+
+    const now = new Date();
+    let totalPayout = 0;
+    const claimedLines: string[] = [];
+    const pendingLines: string[] = [];
+    const rolesToUpdate: string[] = [];
+
+    for (const wage of qualifiedWages) {
+        const lastClaim = claimMap.get(wage.roleId);
+        const cooldownMs = wage.cooldownSeconds * 1000;
+
+        if (!lastClaim || (now.getTime() - lastClaim.getTime() >= cooldownMs)) {
+            totalPayout += wage.salary;
+            claimedLines.push(format(config.economy.wages.claimedLine, {
+                name: wage.name,
+                salary: wage.salary.toLocaleString(),
+                emoji: config.economy.coinEmoji
+            }));
+            rolesToUpdate.push(wage.roleId);
+        } else {
+            const readyUnix = Math.floor((lastClaim.getTime() + cooldownMs) / 1000);
+            pendingLines.push(format(config.economy.wages.pendingLine, {
+                name: wage.name,
+                readyUnix
+            }));
+        }
+    }
+
+    if (claimedLines.length === 0) {
+        return void await interaction.editReply({
+            content: format(config.economy.wages.allOnCooldown, {
+                pendingLines: pendingLines.join("\n")
+            })
+        });
+    }
+
+    const sequelize = EconomyProfile.sequelize;
+    if (sequelize) {
+        await sequelize.transaction(async (t) => {
+            let profile = await EconomyProfile.findOne({ where: { guildId, userId }, transaction: t });
+            if (!profile) {
+                profile = await EconomyProfile.create({ guildId, userId, balance: STARTING_BALANCE }, { transaction: t });
+            }
+
+            await profile.increment("balance", { by: totalPayout, transaction: t });
+
+            for (const roleId of rolesToUpdate) {
+                await UserRoleWage.upsert({
+                    guildId,
+                    userId,
+                    roleId,
+                    lastClaim: now
+                }, { transaction: t });
+            }
+        });
+    }
+
+    const newBalance = await fetchBalance(guildId, userId);
+
+    const pendingSection = pendingLines.length > 0
+        ? format(config.economy.wages.pendingSection, { pendingLines: pendingLines.join("\n") })
+        : "";
+
+    const reply = format(config.economy.wages.message, {
+        emoji: config.economy.coinEmoji,
+        totalPayout: totalPayout.toLocaleString(),
+        claimedLines: claimedLines.join("\n"),
+        pendingSection: pendingSection,
+        balance: newBalance.toLocaleString()
     });
+
+    await interaction.editReply({ content: reply });
 }
 
 async function handleBalance(interaction: ChatInputCommandInteraction) {
@@ -1372,6 +1457,11 @@ async function handlePay(interaction: ChatInputCommandInteraction) {
         await sequelize.transaction({ type: Transaction.TYPES.IMMEDIATE }, async (t) => {
             // Ensure recipient profile exists
             await EconomyProfile.findOrCreate({
+                where: { guildId, userId: senderId },
+                defaults: { guildId, userId: senderId, balance: STARTING_BALANCE },
+                transaction: t
+            });
+            await EconomyProfile.findOrCreate({
                 where: { guildId, userId: targetUser.id },
                 defaults: { guildId, userId: targetUser.id, balance: STARTING_BALANCE },
                 transaction: t
@@ -1404,7 +1494,7 @@ async function handlePay(interaction: ChatInputCommandInteraction) {
         return void await interaction.editReply({ content: "wire transfer failed. Try again later" });
     }
 
-    const updatedSenderBalance = senderBalance - amount;
+    const updatedSenderBalance = await fetchBalance(guildId, senderId);
 
     await interaction.editReply({
         content: format(config.economy.transfer.success, {

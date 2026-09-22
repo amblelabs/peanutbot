@@ -140,7 +140,15 @@ export default {
                 roleId: { type: DataTypes.STRING, allowNull: false },
                 lastClaim: { type: DataTypes.DATE, allowNull: false },
             },
-            { sequelize: ctx.sql }
+            {
+                sequelize: ctx.sql,
+                indexes: [
+                    {
+                        unique: true,
+                        fields: ["guildId", "userId", "roleId"]
+                    }
+                ]
+            }
         );
         EconomyProfile.hasMany(Inventory, { foreignKey: "userId", sourceKey: "userId", onDelete: "CASCADE" });
         Inventory.belongsTo(EconomyProfile, { foreignKey: "userId", targetKey: "userId" });
@@ -549,18 +557,27 @@ async function handleWage(interaction: ChatInputCommandInteraction) {
         });
     }
 
-    const existingClaims = await UserRoleWage.findAll({ where: { guildId, userId } });
-    const claimMap = new Map(existingClaims.map(c => [c.roleId, c.lastClaim]));
+    const sequelize = EconomyProfile.sequelize;
+    if (!sequelize) {
+        return void await interaction.editReply({ content: config.economy.transfer.database_error });
+    }
 
-    const now = new Date();
     let totalPayout = 0;
     const claimedLines: string[] = [];
     const pendingLines: string[] = [];
-    const rolesToUpdate: string[] = [];
+    let newBalance = 0;
 
-    for (const wage of qualifiedWages) {
-        const lastClaim = claimMap.get(wage.roleId);
-        const cooldownMs = wage.cooldownSeconds * 1000;
+    // Run claim check AND update within an immediate transaction lock
+    await sequelize.transaction({ type: Transaction.TYPES.IMMEDIATE }, async (t) => {
+        const now = new Date();
+        const existingClaims = await UserRoleWage.findAll({ where: { guildId, userId }, transaction: t });
+        const claimMap = new Map(existingClaims.map(c => [c.roleId, c.lastClaim]));
+
+        const rolesToUpdate: string[] = [];
+
+        for (const wage of qualifiedWages) {
+            const lastClaim = claimMap.get(wage.roleId);
+            const cooldownMs = wage.cooldownSeconds * 1000;
 
         if (!lastClaim || (now.getTime() - lastClaim.getTime() >= cooldownMs)) {
             totalPayout += wage.salary;
@@ -579,23 +596,15 @@ async function handleWage(interaction: ChatInputCommandInteraction) {
         }
     }
 
-    if (claimedLines.length === 0) {
-        return void await interaction.editReply({
-            content: format(config.economy.wages.allOnCooldown, {
-                pendingLines: pendingLines.join("\n")
-            })
-        });
-    }
-
-    const sequelize = EconomyProfile.sequelize;
-    if (sequelize) {
-        await sequelize.transaction(async (t) => {
+        if (rolesToUpdate.length > 0) {
             let profile = await EconomyProfile.findOne({ where: { guildId, userId }, transaction: t });
             if (!profile) {
                 profile = await EconomyProfile.create({ guildId, userId, balance: STARTING_BALANCE }, { transaction: t });
             }
 
             await profile.increment("balance", { by: totalPayout, transaction: t });
+            await profile.reload({ transaction: t });
+            newBalance = profile.balance;
 
             for (const roleId of rolesToUpdate) {
                 await UserRoleWage.upsert({
@@ -605,10 +614,16 @@ async function handleWage(interaction: ChatInputCommandInteraction) {
                     lastClaim: now
                 }, { transaction: t });
             }
+        }
+    });
+
+    if (claimedLines.length === 0) {
+        return void await interaction.editReply({
+            content: format(config.economy.wages.allOnCooldown, {
+                pendingLines: pendingLines.join("\n")
+            })
         });
     }
-
-    const newBalance = await fetchBalance(guildId, userId);
 
     const pendingSection = pendingLines.length > 0
         ? format(config.economy.wages.pendingSection, { pendingLines: pendingLines.join("\n") })

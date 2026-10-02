@@ -65,16 +65,29 @@ export default {
                 });
             }
 
+            let replyMention = "";
+            if (message.reference && message.reference.messageId) {
+                try {
+                    const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
+                    if (repliedMessage) {
+                        replyMention = `<@${repliedMessage.author.id}> `;
+                    }
+                } catch (fetchErr) {
+                    console.error("Could not fetch replied message context:", fetchErr);
+                }
+            }
+
             const userText = message.content.trim();
             const content = userText
-                ? `${userText}\n**Log uploaded:** ${mclogsUrl}`
-                : `**Log uploaded:** ${mclogsUrl}`;
+                ? `${replyMention}${userText}\n**Log uploaded:** ${mclogsUrl}`
+                : `${replyMention}**Log uploaded:** ${mclogsUrl}`;
 
             await webhook.send({
                 content,
                 username: message.member?.displayName || message.author.username,
                 avatarURL: message.author.displayAvatarURL(),
                 threadId: channel.isThread() ? channel.id : undefined,
+                allowedMentions: { users: replyMention ? [replyMention.match(/\d+/)?.[0] || ""] : [] }
             });
 
             await message.delete().catch(() => {});

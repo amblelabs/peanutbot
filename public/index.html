@@ -482,7 +482,41 @@
   async function fetchChannelsList() {
     const selectEl = document.getElementById('channel-select');
 
-    if (discordSdk && discordSdk.channelId) {
+    // 1. Backend first — returns EVERY channel the user can post in.
+    if (discordSdk?.guildId && discordAuth?.user?.id) {
+      try {
+        const url = `/api/channels?guildId=${encodeURIComponent(discordSdk.guildId)}&userId=${encodeURIComponent(discordAuth.user.id)}`;
+        console.log('[frontend] requesting channel list:', url);
+
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          state.channels = Array.isArray(data) ? data : (data.channels || []);
+          console.log('[frontend] got', state.channels.length, 'channels');
+
+          if (state.channels.length > 0) {
+            // Pre-select the channel the Activity was launched in
+            const activeId = discordSdk.channelId;
+            const active = state.channels.find(c => c.id === activeId) ?? state.channels[0];
+
+            selectEl.innerHTML = state.channels.map(c =>
+                    `<option value="${c.id}" ${c.id === active.id ? 'selected' : ''}># ${escapeHtml(c.name)}</option>`
+            ).join('');
+
+            state.selectedChannelId = active.id;
+            updatePreviewChannelName(active.name);
+            return;
+          }
+        } else {
+          console.warn('[frontend] /api/channels returned', res.status);
+        }
+      } catch (err) {
+        console.warn('[frontend] /api/channels fetch failed:', err);
+      }
+    }
+
+    // 2. Fallback: SDK's current channel only
+    if (discordSdk?.channelId) {
       try {
         const channel = await discordSdk.commands.getChannel({ channel_id: discordSdk.channelId });
         state.channels = [channel];
@@ -491,31 +525,11 @@
         updatePreviewChannelName(channel.name || 'channel');
         return;
       } catch (err) {
-        console.warn('getChannel failed, falling back:', err);
+        console.warn('getChannel failed:', err);
       }
     }
 
-    try {
-      const gid = discordSdk?.guildId ?? '';
-      const res = await fetch(`/api/channels?guildId=${encodeURIComponent(gid)}`);
-      if (res.ok) {
-        const data = await res.json();
-        state.channels = Array.isArray(data) ? data : (data.channels || []);
-        if (state.channels.length > 0) {
-          selectEl.innerHTML = state.channels.map(c =>
-                  `<option value="${c.id}"># ${escapeHtml(c.name)}</option>`
-          ).join('');
-          state.selectedChannelId = state.channels[0].id;
-          updatePreviewChannelName(state.channels[0].name);
-        } else {
-          selectEl.innerHTML = '<option value="">Default Webhook Channel</option>';
-        }
-      } else {
-        selectEl.innerHTML = '<option value="">Default Webhook Channel</option>';
-      }
-    } catch (err) {
-      selectEl.innerHTML = '<option value="">Default Webhook Channel</option>';
-    }
+    selectEl.innerHTML = '<option value="">Default Webhook Channel</option>';
   }
 
   // ────────────────────────────────────────────────────────────────────

@@ -93,20 +93,31 @@ export function createActivityServer(client: Client) {
         try {
             const guild = await client.guilds.fetch(guildId);
 
-            // Fetch every channel from the API (cache may be partial after restart)
-            const all = await guild.channels.fetch();
-            const member = await guild.members.fetch(userId);
+            // (1) Make sure ALL roles are cached before computing permissions.
+            //     permissionsFor walks member.roles.cache and guild.roles.cache;
+            //     if a role object isn't cached, its permissions are silently skipped.
+            await guild.roles.fetch();
 
-            const channels = all
+            const [allChannels, member] = await Promise.all([
+                guild.channels.fetch(),
+                guild.members.fetch(userId),
+            ]);
+
+            // (2) Don't use c.isSendable() — it reflects the BOT's permissions,
+            //     not the user's. Use type checks + explicit permission lookup.
+            const channels = allChannels
                 .filter((c): c is NonNullable<typeof c> => c !== null)
-                .filter((c) => c.isTextBased() && !c.isThread() && c.isSendable())
+                .filter((c) => c.isTextBased() && !c.isThread())
                 .filter((c) => {
-                    // Compute effective permissions for this specific member in this channel
                     const perms = c.permissionsFor(member);
-                    return perms?.has('SendMessages') && perms.has('ViewChannel');
+                    if (!perms) return false;
+                    return perms.has('ViewChannel') && perms.has('SendMessages');
                 })
                 .map((c) => ({ id: c.id, name: c.name }))
                 .sort((a, b) => a.name.localeCompare(b.name));
+
+            // (3) Log the outcome so you can tell what's happening server-side.
+            console.log(`[channels] guild=${guildId} user=${userId} → ${channels.length} of ${allChannels.size} visible`);
 
             res.json(channels);
         } catch (error) {

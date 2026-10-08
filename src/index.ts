@@ -18,7 +18,7 @@ import { logger } from "./util/logger.ts";
 import { Sequelize } from "sequelize";
 import { oramaStaticClient } from "./util/wikisearch2.ts";
 import { create as createOrama } from "@orama/orama";
-import {createActivityServer} from "~/activity.ts";
+//import {createActivityServer} from "~/activity.ts";
 
 // Create a new client instance
 const dbPath = path.resolve(__dirname, "../database.sqlite");

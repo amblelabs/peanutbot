@@ -301,4 +301,8 @@ Consider donating to one of the following people:
       "<a:al_explosion:1467652202356150272>": ":01KVAMF92JKDHM19513A2J82JG:",
     },
   },
+  activity:{
+    allowedRoleIds:["1262622636819877919" ],
+    allowedUserIds:["368694479391293442", "1257750834150637599"],
+  }
 };

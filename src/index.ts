@@ -248,11 +248,12 @@ process.on("unhandledRejection", (err) => {
 setInterval(tickMinute, 60 * 1000); // every minute
 setInterval(tickSleepSticker, 60 * 61 * 1000); // every hour
 
-const PORT = process.env.PORT || 3000;
+/*const PORT = process.env.PORT || 3000;
 const app = createActivityServer(ctx.client);
 
 app.listen(PORT, () => {
   console.log(`🌐 Activity server running on http://localhost:${PORT}`);
 });
+*/
 // Log in to Discord with your client's token
 ctx.client.login(env.token);

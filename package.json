@@ -4,19 +4,25 @@
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/index.ts"
+    "dev": "bun --watch src/index.ts",
+    "server": "bun run build:assets && concurrently -k -n css,server -c cyan,magenta \\\"bun run watch:css\\\" \\\"bun --watch src/index.ts\\\"",
+    "build:css": "tailwindcss -i ./src/input.css -o ./public/styles.css --minify",
+    "watch:css": "tailwindcss -i ./src/input.css -o ./public/styles.css --watch",
+    "build:fa": "node -e \"const fs=require('fs');fs.cpSync('node_modules/@fortawesome/fontawesome-free/css','public/fa/css',{recursive:true});fs.cpSync('node_modules/@fortawesome/fontawesome-free/webfonts','public/fa/webfonts',{recursive:true})\""
   },
   "devDependencies": {
     "@types/archiver": "^6.0.3",
     "@types/bun": "latest",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
-    "eslint": "^9.31.0"
+    "eslint": "^9.31.0",
+    "tailwindcss": "^3.4.19"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@fortawesome/fontawesome-free": "^7.3.1",
     "@orama/orama": "^3.1.18",
     "archiver": "^7.0.1",
     "cors": "^2.8.6",

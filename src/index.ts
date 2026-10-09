@@ -248,10 +248,10 @@ process.on("unhandledRejection", (err) => {
 setInterval(tickMinute, 60 * 1000); // every minute
 setInterval(tickSleepSticker, 60 * 61 * 1000); // every hour
 
-const PORT = process.env.PORT || 19138;
+const PORT = Number(process.env.PORT) || 19138;
 const app = createActivityServer(ctx.client);
 
-app.listen(PORT, () => {
+app.listen(PORT,'0.0.0.0', () => {
   console.log(`Activity server running on http://localhost:${PORT}`);
 });
 

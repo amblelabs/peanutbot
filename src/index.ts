@@ -19,6 +19,7 @@ import { Sequelize } from "sequelize";
 import { oramaStaticClient } from "./util/wikisearch2.ts";
 import { create as createOrama } from "@orama/orama";
 import {createActivityServer} from "~/activity.ts";
+import * as https from "node:https";
 
 // Create a new client instance
 const dbPath = path.resolve(__dirname, "../database.sqlite");
@@ -250,9 +251,12 @@ setInterval(tickSleepSticker, 60 * 61 * 1000); // every hour
 
 const PORT = Number(process.env.PORT) || 19138;
 const app = createActivityServer(ctx.client);
-
-app.listen(PORT,'0.0.0.0', () => {
-  console.log(`Activity server running on http://localhost:${PORT}`);
+const sslOptions = {
+  key: fs.readFileSync(path.join(__dirname, '../peanut-activity.duckdns.org.key')),
+  cert: fs.readFileSync(path.join(__dirname, '../fullchain.cer')),
+};
+https.createServer(sslOptions, app).listen(PORT, '0.0.0.0', () => {
+  console.log(`🔒 Native HTTPS server running on https://peanut-activity.duckdns.org:${PORT}`);
 });
 
 // Log in to Discord with your client's token

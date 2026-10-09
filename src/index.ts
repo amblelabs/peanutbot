@@ -20,6 +20,7 @@ import { oramaStaticClient } from "./util/wikisearch2.ts";
 import { create as createOrama } from "@orama/orama";
 import {createActivityServer} from "~/activity.ts";
 import * as https from "node:https";
+import localtunnel from "localtunnel";
 
 // Create a new client instance
 const dbPath = path.resolve(__dirname, "../database.sqlite");
@@ -249,6 +250,26 @@ process.on("unhandledRejection", (err) => {
 setInterval(tickMinute, 60 * 1000); // every minute
 setInterval(tickSleepSticker, 60 * 61 * 1000); // every hour
 
+async function startPersistentLocaltunnel(port: number) {
+  const SUBDOMAIN = "peanut-activity-rnshosting-62859"; // Choose a unique name
+
+  try {
+    const tunnel = await localtunnel({ port, subdomain: SUBDOMAIN });
+
+    console.log("\n==================================================");
+    console.log(`🚀 PERMANENT DISCORD ACTIVITY URL:`);
+    console.log(`👉 ${tunnel.url}`);
+    console.log("==================================================\n");
+
+    tunnel.on("close", () => {
+      console.warn("⚠️ Localtunnel connection closed. Reconnecting in 5s...");
+      setTimeout(() => startPersistentLocaltunnel(port), 5000);
+    });
+  } catch (err) {
+    console.error("Failed to start Localtunnel:", err);
+    setTimeout(() => startPersistentLocaltunnel(port), 5000);
+  }
+}
 const PORT = Number(process.env.PORT) || 19138;
 const app = createActivityServer(ctx.client);
 const sslOptions = {
@@ -257,6 +278,7 @@ const sslOptions = {
 };
 https.createServer(sslOptions, app).listen(PORT, '0.0.0.0', () => {
   console.log(`🔒 Native HTTPS server running on https://peanut-activity.duckdns.org:${PORT}`);
+  startPersistentLocaltunnel(PORT);
 });
 
 // Log in to Discord with your client's token

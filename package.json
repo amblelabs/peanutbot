@@ -4,7 +4,7 @@
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/index.ts",
+    "dev": "PORT=19138 bun --watch src/index.ts",
     "server": "bun run build:assets && concurrently -k -n css,server -c cyan,magenta \\\"bun run watch:css\\\" \\\"bun --watch src/index.ts\\\"",
     "build:css": "tailwindcss -i ./src/input.css -o ./public/styles.css --minify",
     "watch:css": "tailwindcss -i ./src/input.css -o ./public/styles.css --watch",

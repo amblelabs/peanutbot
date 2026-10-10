@@ -249,7 +249,7 @@ process.on("unhandledRejection", (err) => {
 setInterval(tickMinute, 60 * 1000); // every minute
 setInterval(tickSleepSticker, 60 * 61 * 1000); // every hour
 
-const PORT = Number(process.env.PORT) || 19138;
+const PORT = Number(process.env.PORT) || 25568;
 const app = createActivityServer(ctx.client);
 const sslOptions = {
   key: fs.readFileSync(path.join(__dirname, '../peanut-activity.duckdns.org.key')),

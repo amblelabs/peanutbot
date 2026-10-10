@@ -188,9 +188,14 @@ export function createActivityServer(client: Client) {
     });
 
     // Static Assets
-    const publicPath = path.join(__dirname, '../public');
-    app.use(express.static(publicPath));
-    app.get('/*splat', (_req, res) => res.sendFile(path.join(publicPath, 'index.html')));
+    app.get('/', (_req, res) => {
+        res.json({ status: 'online', message: 'Peanut Activity API' });
+    });
+
+    // Catch-all 404 for missing API routes
+    app.use((_req, res) => {
+        res.status(404).json({ error: 'Endpoint not found' });
+    });
 
     return app;
 }

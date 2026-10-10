@@ -12,14 +12,14 @@ import type {
 import type { Cmd, CmdData, Ctx } from "~/util/base";
 
 export const data: CmdData = {
-    name: "activity",
+    name: "webhook",
 };
 
 // 1. Slash command metadata
 export function slash(builder: SlashCommandBuilder): SharedSlashCommand {
     return builder
         .setName(data.name)
-        .setDescription("Launch the Webhook Studio Activity UI.")
+        .setDescription("Send a webhook via an activity")
         .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
         .setContexts(InteractionContextType.Guild);
 }

@@ -20,6 +20,7 @@ import { oramaStaticClient } from "./util/wikisearch2.ts";
 import { create as createOrama } from "@orama/orama";
 import {createActivityServer} from "~/activity.ts";
 import * as https from "node:https";
+import promo from "src/commands/auto/promo.ts"
 
 // Create a new client instance
 const dbPath = path.resolve(__dirname, "../database.sqlite");
@@ -92,6 +93,7 @@ ctx.client.once(Events.ClientReady, async (readyClient) => {
   ctx.wakeUp();
 
   logger.info(`Ready! Logged in as ${readyClient.user.tag}`);
+  await promo(ctx.client)
 });
 
 const handlers: Dict<Cmd> = {};

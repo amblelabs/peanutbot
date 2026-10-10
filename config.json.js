@@ -304,5 +304,11 @@ Consider donating to one of the following people:
   activity:{
     allowedRoleIds:["1262622636819877919" ],
     allowedUserIds:["368694479391293442", "1257750834150637599"],
+  },
+  auto:{
+    promo:{
+      message: "PEANUT IS CURRENTLY HOSTED ON [RNSHOSTING](https://rnshosting.xyz)\n GET YOUR FAIRLY PRICED GAME SERVER HERE! :3",
+      channel: "1213989171241426954"
+    }
   }
 };

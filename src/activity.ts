@@ -39,7 +39,7 @@ export function createActivityServer(client: Client) {
     // --- 1. OAuth2 Token Exchange ---
     app.use(express.json()); // 👈 must be BEFORE this route
 
-    app.post('/api/token', async (req, res) => {
+    app.post(['/api/token', '/token'], async (req, res) => {
         const { code } = req.body;
 
         if (!code) {
@@ -71,18 +71,18 @@ export function createActivityServer(client: Client) {
             res.status(500).json({ error: 'Failed to exchange token' });
         }
     });
-    app.get('/api/config', (_req, res) => {
+    app.get(['/api/config', '/config'], (_req, res) => {
         res.json({ clientId: config.clientId });
     });
     // --- 2. Permission Check Endpoint ---
-    app.post('/api/auth-check', async (req, res) => {
+    app.post(['/api/auth-check', '/auth-check'], async (req, res) => {
         const { guildId, userId } = req.body;
         const allowed = await userHasAccess(guildId, userId);
         res.json({ allowed });
     });
 
     // --- 3. Get Text Channels for Dropdown ---
-    app.get('/api/channels', async (req, res) => {
+    app.get(['/api/channels', '/channels'], async (req, res) => {
         const guildId = req.query.guildId as string | undefined;
         const userId  = req.query.userId  as string | undefined;
 
@@ -127,7 +127,7 @@ export function createActivityServer(client: Client) {
     });
 
     // --- 4. Send Webhook & Optionally Purge Past Webhook Messages ---
-    app.post('/api/send-webhook', async (req, res) => {
+    app.post(['/api/send-webhook', '/send-webhook'], async (req, res) => {
         const { guildId, channelId, userId, payload, deletePrevious } = req.body;
 
         // Check permissions

@@ -12,7 +12,10 @@ export function createActivityServer(client: Client) {
     const __dirname = path.dirname(__filename);
     app.use(cors());
     app.use(express.json());
-
+    app.use((req, _res, next) => {
+        console.log(`[ACTIVITY BACKEND] ${req.method} ${req.url}`);
+        next();
+    });
     // --- Helper: Permission Check ---
     async function userHasAccess(guildId: string, userId: string): Promise<boolean> {
         const  allowedUserIds = config.activity.allowedUserIds as string[];

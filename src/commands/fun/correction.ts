@@ -14,9 +14,8 @@ export default {
         const foundCorrections: string[] = [];
 
         for (const [trigger, replacement] of Object.entries(corrections)) {
-            // Escape special regex chars and match whole words (case-insensitive)
             const escapedTrigger = trigger.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const wordRegex = new RegExp(`\\b${escapedTrigger}\\b`, "i");
+            const wordRegex = new RegExp(`\\b${escapedTrigger}\\b`);
 
             if (wordRegex.test(message.content)) {
                 foundCorrections.push(`*${replacement}`);

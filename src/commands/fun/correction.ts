@@ -23,7 +23,7 @@ export default {
         }
 
         if (foundCorrections.length > 0) {
-            await message.reply{ content: foundCorrections.join("\n") }).catch(() => {});
+            await message.reply({ content: foundCorrections.join("\n") }).catch(() => {});
         }
     },
 } as Cmd;

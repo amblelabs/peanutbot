@@ -145,6 +145,10 @@ Consider donating to one of the following people:
       "https://raw.githubusercontent.com/amblelabs/peanutbot/refs/heads/master/assets/gemini.webp",
     claude:
       "https://raw.githubusercontent.com/amblelabs/peanutbot/refs/heads/master/assets/claude.webp",
+    correction:{
+      loqor: "loqueer",
+      Loqor: "Loqueer"
+    }
   },
   arguing: {
     channel: "1213989170964340883",

@@ -22,8 +22,8 @@ export default {
             }
         }
 
-        if (foundCorrections.length > 0 && !message.channel.isDMBased()) {
-            await message.channel.send({ content: foundCorrections.join("\n") }).catch(() => {});
+        if (foundCorrections.length > 0) {
+            await message.reply{ content: foundCorrections.join("\n") }).catch(() => {});
         }
     },
 } as Cmd;

@@ -311,7 +311,7 @@ Consider donating to one of the following people:
   },
   auto:{
     promo:{
-      message: "Peanut is currently hosted on RNSHosting.\n Get fairly priced game servers today!",
+      message: "Peanut is currently hosted on [RNSHosting](https://rnshosting.xyz).\n Get fairly priced game servers today!",
       channel: "1213989171241426954"
     }
   }

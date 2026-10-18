@@ -57,14 +57,13 @@ Are you sure you want to ping support?
         "# [Click here to report a ](<https://github.com/amblelabs/stargate/issues/new?template=1-bug-report.yaml>)<:al_stargate:1504663279421882378>[ Stargate bug](<https://github.com/amblelabs/stargate/issues/new?template=1-bug-report.yaml>)",
       wiki: "# <:al_logo:1492686347666980944>[ AmbleLabs Wiki](https://amblelabs.dev/wiki/)",
       eta: `
-There's no ETA. The mod will be out when it's out.
+There's no ETA. All mods (depending on what you mean) will be out when it's out.
 Check the <#1213995158178242631> channel for public WIP posts.
 
-Consider donating to one of the following people:
-- [Theo](<https://boosty.to/dr.theo>)
-- [Loqor](<https://ko-fi.com/loqor>)
-- [Classic](<https://ko-fi.com/redpanda39441>)
-...or the discord server shop to access donator exclsusive WIP posts & releases and to help support our projects.
+If you want to become a Donator and have access to beta builds of our mods (including In Brightest Day), donate here:
+https://discord.com/channels/1213989169878274068/shop
+and if you can't through Discord, here:
+https://ko-fi.com/loqor
       `,
     },
   },

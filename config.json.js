@@ -63,7 +63,8 @@ Check the <#1213995158178242631> channel for public WIP posts.
 If you want to become a Donator and have access to beta builds of our mods (including In Brightest Day), donate here:
 https://discord.com/channels/1213989169878274068/shop
 and if you can't through Discord, here:
-https://ko-fi.com/loqor
+<https://ko-fi.com/loqor>
+<https://boosty.to/dr.theo>
       `,
     },
   },

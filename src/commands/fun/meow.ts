@@ -6,15 +6,12 @@ import rnd from "~/util/rnd";
 import wrath from "~/util/angry";
 import cache from "~/util/cache";
 
-const url =
-  "http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/peanut_meow_1.webm";
-
 const data: CmdData = {
   name: "meow",
 };
 
 async function meow(channel: SendableChannels) {
-  cache.uncache(url, (m) => channel.send(m));
+  cache.uncache(rnd.pickRandom(config.fun.meow.files), (m) => channel.send(m));
 }
 
 async function execute(

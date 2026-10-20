@@ -93,6 +93,11 @@ and if you can't through Discord, here:
       enabled: true,
       channel: "1213989171241426954",
       role: "1325521300860567683",
+      files: [
+        "http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/peanut_meow_1.webm",
+        "http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/peanut_meow_2.webm",
+        "http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/peanut_meow_night.webm",
+      ],
       min: 60*3,
       max: 60*6,
     },

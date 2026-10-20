@@ -33,7 +33,7 @@ function parseBuildInfo(message: Message): BuildInfo | null {
         if (!text) continue;
 
         const lowerText = text.toLowerCase();
-        if (!lowerText.includes(".jar") || !lowerText.includes("-dev.")) continue;
+        if (!lowerText.includes(".jar")) continue;
 
         const jarMatches = text.match(/[a-zA-Z0-9_\-\.\+\?=\&]+\.jar(?:\?[^\s]+)?/gi);
         if (!jarMatches) continue;
@@ -41,12 +41,42 @@ function parseBuildInfo(message: Message): BuildInfo | null {
         for (const raw of jarMatches) {
             const filename = raw.split("?")[0];
 
-            const devMatch = filename.match(/^(.+?)-dev\.(\d+)(?:(?:\+|-)??mc\.([a-zA-Z0-9_\.]+))?\.jar$/i);
-            if (!devMatch) continue;
+            let matchResult: { base: string; buildNum: number; rawMcVersion?: string } | null = null;
 
-            const base = devMatch[1];
-            const buildNum = parseInt(devMatch[2], 10);
-            const mcVersion = devMatch[3] ? devMatch[3].toLowerCase().trim() : undefined;
+            // 1. Dev pattern: e.g., modname-dev.167.jar or modname-1.0-dev.167+mc1.20.1.jar
+            const devMatch = filename.match(/^(.+?)-dev\.(\d+)(?:(?:\+|-)??mc\.([a-zA-Z0-9_\.]+))?\.jar$/i);
+            if (devMatch) {
+                matchResult = {
+                    base: devMatch[1],
+                    buildNum: parseInt(devMatch[2], 10),
+                    rawMcVersion: devMatch[3],
+                };
+            } else {
+                // 2. Semver pattern: e.g., brightestday-ALPHA-1.0.167.jar or modname-1.0.167.jar
+                const semverMatch = filename.match(/^(.+?)-v?(\d+(?:\.\d+)*)\.(\d+)(?:(?:\+|-)??mc\.([a-zA-Z0-9_\.]+))?\.jar$/i);
+                if (semverMatch) {
+                    matchResult = {
+                        base: semverMatch[1],
+                        buildNum: parseInt(semverMatch[3], 10),
+                        rawMcVersion: semverMatch[4],
+                    };
+                } else {
+                    // 3. Simple build number pattern: e.g., modname-ALPHA-167.jar
+                    const buildMatch = filename.match(/^(.+?)-(\d+)(?:(?:\+|-)??mc\.([a-zA-Z0-9_\.]+))?\.jar$/i);
+                    if (buildMatch) {
+                        matchResult = {
+                            base: buildMatch[1],
+                            buildNum: parseInt(buildMatch[2], 10),
+                            rawMcVersion: buildMatch[3],
+                        };
+                    }
+                }
+            }
+
+            if (!matchResult) continue;
+
+            const { base, buildNum, rawMcVersion } = matchResult;
+            const mcVersion = rawMcVersion ? rawMcVersion.toLowerCase().trim() : undefined;
 
             let modName = "";
             let branch = "main";
@@ -137,7 +167,6 @@ async function scanChannelBuilds(
     let pinnedMessages;
 
     try {
-        // Fetch both scan window and existing pins in parallel
         [fetchedMessages, pinnedMessages] = await Promise.all([
             channel.messages.fetch({ limit }),
             channel.messages.fetchPinned(),
@@ -147,7 +176,6 @@ async function scanChannelBuilds(
         return { scanned: 0, updated: 0 };
     }
 
-    // Step 1: "Think First" — Group fetched messages and find the highest build for each key
     const latestScannedMap = new Map<string, { info: BuildInfo; msg: Message }>();
     for (const msg of fetchedMessages.values()) {
         const info = parseBuildInfo(msg);
@@ -159,7 +187,6 @@ async function scanChannelBuilds(
         }
     }
 
-    // Step 2: Group existing channel pins by buildKey
     const currentPinsMap = new Map<string, { info: BuildInfo; msg: Message }>();
     for (const msg of pinnedMessages.values()) {
         const info = parseBuildInfo(msg);
@@ -169,12 +196,10 @@ async function scanChannelBuilds(
 
     let updatedCount = 0;
 
-    // Step 3: "Pin Later" — Perform single pin/unpin action only for final winners
     for (const [buildKey, scanned] of latestScannedMap.entries()) {
         const pinned = currentPinsMap.get(buildKey);
 
         if (!pinned) {
-            // New build track found that isn't pinned yet
             if (!scanned.msg.pinned) {
                 await scanned.msg.pin().catch((err) =>
                     console.error(`❌ [AutoPin Error] Failed to pin message ${scanned.msg.id}:`, err)
@@ -182,7 +207,6 @@ async function scanChannelBuilds(
                 updatedCount++;
             }
         } else if (scanned.info.buildNum > pinned.info.buildNum) {
-            // Scanned build strictly replaces the pinned build
             await pinned.msg.unpin().catch((err) =>
                 console.error(`❌ [AutoPin Error] Failed to unpin message ${pinned.msg.id}:`, err)
             );

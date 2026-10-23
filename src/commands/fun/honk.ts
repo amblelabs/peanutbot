@@ -16,7 +16,7 @@ import path from "node:path";
 import type { Cmd, CmdData, Ctx } from "~/util/base";
 
 const data: CmdData = {
-    name: "play",
+    name: "honk",
 };
 
 const activeConnections = new Map<string, VoiceConnection>();

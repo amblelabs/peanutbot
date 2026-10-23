@@ -31,6 +31,7 @@ const ctx: Ctx = {
       GatewayIntentBits.GuildMembers,
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
+      GatewayIntentBits.GuildVoiceStates,
     ],
   }),
   sql: new Sequelize({

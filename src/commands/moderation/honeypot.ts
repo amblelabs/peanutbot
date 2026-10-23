@@ -56,11 +56,33 @@ export default {
             const violatorId = message.author.id;
             const displayName = member.user.globalName || member.user.username;
 
-            logger.info(`HONEYPOT TRIGGERED! Attempting to ban: ${violatorTag} (${violatorId})`);
+            logger.info(`HONEYPOT TRIGGERED! Attempting to ban: violatorTag ({violatorId})`);
 
             await member.send(config.honeypot.message).catch(() => {
-                logger.warn(`Could not send DM to ${violatorTag} (DMs disabled or blocked).`);
+                logger.warn(`Could not send DM to \${violatorTag} (DMs disabled or blocked).`);
             });
+
+            const dossierChannel = await ctx.client.channels.fetch(config.honeypot.dossierChannelId);
+            if (dossierChannel && dossierChannel.type === ChannelType.GuildForum) {
+                const banDesc = [
+                    `Punishment: Ban`,
+                    `By <@${ctx.client.user?.id}>`,
+                    `Length: Permanent`,
+                    `Reason: HONEYPOT`
+                ].join("\n");
+
+                // 1. Create the brand new thread post
+                const thread = await dossierChannel.threads.create({
+                    name: `${displayName} / ${violatorId}`,
+                    appliedTags: [config.honeypot.banTag],
+                    message: { content: banDesc },
+                });
+
+                // 2. Forward the user's message straight into the newly created thread
+                await message.forward(thread);
+            }
+
+            // Execute ban and increment stats after forwarding is secure
             await member.ban({
                 deleteMessageSeconds: config.honeypot.deleteMessageSeconds,
                 reason: config.honeypot.banDescription,
@@ -75,29 +97,11 @@ export default {
 
             logger.info(`Successfully banned user ${violatorTag}. Total all-time bans: ${trueBanCount}`);
 
-            // 👇 Cleaned up: No inline .catch(), no null checks. Just straight to the point.
             const logChannel = await ctx.client.channels.fetch(config.honeypot.logChannelId);
             if (logChannel && logChannel.isSendable()) {
                 await logChannel.send(
                     `**HONEYPOT TRIGGERED**\n**Banned:** \`${violatorTag}\` (${violatorId})\n**Total Bans (All-Time):** \`${trueBanCount}\``
                 );
-            }
-
-            const dossierChannel = await ctx.client.channels.fetch(config.honeypot.dossierChannelId);
-            if (dossierChannel && dossierChannel.type === ChannelType.GuildForum) {
-                const banDesc = [
-                    `Punishment: Ban`,
-                    `By <@${ctx.client.user?.id}>`,
-                    `Length: Permanent`,
-                    `Reason: HONEYPOT`
-                ].join("\n");
-
-                // Creates a brand new post/thread inside the forum channel
-                await dossierChannel.threads.create({
-                    name: `${displayName} / ${violatorId}`,
-                    appliedTags: [config.honeypot.banTag],
-                    message: { content: banDesc },
-                });
             }
         } catch (error) {
             logger.error(`Failed to execute honeypot ban for ID ${message.author.id}:`, error);

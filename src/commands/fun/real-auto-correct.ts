@@ -2,6 +2,7 @@ import type { Message } from "discord.js";
 import type { Cmd, CmdData, Ctx } from "~/util/base";
 import Typo from "typo-js";
 import path from "node:path";
+import fs from "node:fs";
 
 const data: CmdData = {
     name: "autocorrect",
@@ -9,8 +10,21 @@ const data: CmdData = {
 
 // 1. Load BOTH dictionaries
 const dictionaryPath = path.resolve(__dirname, "../../../assets/dictionaries");
-const dictUS = new Typo("en_US", null, null, { dictionaryPath });
-const dictGB = new Typo("en_GB", null, null, { dictionaryPath }); // Requires en_GB.aff & en_GB.dic
+const usAffPath = path.join(dictionaryPath, "en_US.aff");
+const usDicPath = path.join(dictionaryPath, "en_US.dic");
+
+const gbAffPath = path.join(dictionaryPath, "en_GB.aff");
+const gbDicPath = path.join(dictionaryPath, "en_GB.dic");
+
+
+const usAffData = fs.readFileSync(usAffPath, "utf8");
+const usDicData = fs.readFileSync(usDicPath, "utf8");
+
+const gbAffData = fs.readFileSync(gbAffPath, "utf8");
+const gbDicData = fs.readFileSync(gbDicPath, "utf8");
+
+const dictUS = new Typo("en_US", usAffData, usDicData);
+const dictGB = new Typo("en_GB", gbAffData, gbDicData);
 
 async function onMessage(_ctx: Ctx, message: Message) {
     if (message.author.bot || message.content.trim().startsWith("?")) return;

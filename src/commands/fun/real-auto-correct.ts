@@ -3,6 +3,7 @@ import type { Cmd, CmdData, Ctx } from "~/util/base";
 import Typo from "typo-js";
 import path from "node:path";
 import fs from "node:fs";
+import config from "config.json"
 
 const data: CmdData = {
     name: "autocorrect",
@@ -26,9 +27,13 @@ const gbDicData = fs.readFileSync(gbDicPath, "utf8");
 const dictUS = new Typo("en_US", usAffData, usDicData);
 const dictGB = new Typo("en_GB", gbAffData, gbDicData);
 
+const TARGET_ROLE_ID = config.fun.realCorrection;
+
 async function onMessage(_ctx: Ctx, message: Message) {
     if (message.author.bot || message.content.trim().startsWith("?")) return;
-
+    if (!message.member?.roles.cache.has(TARGET_ROLE_ID)) {
+        return;
+    }
     const words = message.content
         .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"島]/g, "")
         .split(/\s+/);

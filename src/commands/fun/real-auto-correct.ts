@@ -8,7 +8,7 @@ const data: CmdData = {
 };
 
 // 1. Load BOTH dictionaries
-const dictionaryPath = path.resolve(__dirname, "../../../dictionaries");
+const dictionaryPath = path.resolve(__dirname, "../../../assets/dictionaries");
 const dictUS = new Typo("en_US", null, null, { dictionaryPath });
 const dictGB = new Typo("en_GB", null, null, { dictionaryPath }); // Requires en_GB.aff & en_GB.dic
 

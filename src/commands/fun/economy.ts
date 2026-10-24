@@ -496,30 +496,6 @@ async function hasStaffPermission(interaction: ChatInputCommandInteraction): Pro
 
 // ── SUBCOMMAND HANDLERS ──────────────────────────────────────────────────
 
-function getMemberWageConfig(member: GuildMember) {
-    const defaultSalary = config.economy.wages.defaultAmount ?? 50;
-    const defaultCooldown = config.economy.wages.defaultCooldown ?? 86400; // 24 hours default fallback
-
-    let bestSalary = defaultSalary;
-    let bestCooldown = defaultCooldown;
-
-    const roleSalaries = config.economy.wages.roleSalaries as Record<string, number | number[]> | undefined;
-    if (roleSalaries) {
-        for (const [roleId, value] of Object.entries(roleSalaries)) {
-            if (!member.roles.cache.has(roleId)) continue;
-            const [salary, cooldown] = Array.isArray(value)
-                ? [value[0] ?? defaultSalary, value[1] ?? defaultCooldown]
-                : [value, defaultCooldown];
-            // Pick the role with the highest salary; break ties by shorter cooldown
-            if (salary > bestSalary || (salary === bestSalary && cooldown < bestCooldown)) {
-                bestSalary = salary;
-                bestCooldown = cooldown;
-            }
-        }
-    }
-    return { salaryAmount: bestSalary, cooldownSeconds: bestCooldown };
-}
-
 async function handleWage(interaction: ChatInputCommandInteraction) {
     if (!interaction.inCachedGuild()) return;
 
@@ -527,8 +503,8 @@ async function handleWage(interaction: ChatInputCommandInteraction) {
     const userId = interaction.user.id;
     const member = interaction.member;
 
-    const defaultSalary = config.economy.wages.defaultAmount ?? 50;
-    const defaultCooldown = config.economy.wages.defaultCooldown ?? 86400;
+    const defaultSalary = config.economy.wages.defaultAmount;
+    const defaultCooldown = config.economy.wages.defaultCooldown;
     const roleSalaries = (config.economy.wages.roleSalaries || {}) as Record<string, number | number[]>;
 
     const qualifiedWages: Array<{ roleId: string; name: string; salary: number; cooldownSeconds: number }> = [];

@@ -269,10 +269,10 @@ and if you can't through Discord, here:
       message: "**Collected Wage!** (+{totalPayout} {emoji})\n\n{claimedLines}{pendingSection}\n\n **New Balance:** {balance} {emoji}",
       pendingSection: "\n\n**Still on Cooldown:**\n{pendingLines}",
       allOnCooldown: "**All your salaries are currently on cooldown!**\n\n{pendingLines}",
-      claimedLine: "• **{name}**: +{salary} {emoji}",
-      pendingLine: "• **{name}**: Ready <t:{readyUnix}:R>",
+      claimedLine: "- **{name}**: +{salary} {emoji}",
+      pendingLine: "- **{name}**: Ready <t:{readyUnix}:R>",
       defaultAmount: 50,
-      defaultCooldown: 60*60*24,
+      defaultCooldown: 86400,
       roleSalaries: {
         "1262624821582364703": [500, 60],
 

@@ -503,8 +503,8 @@ async function handleWage(interaction: ChatInputCommandInteraction) {
     const userId = interaction.user.id;
     const member = interaction.member;
 
-    const defaultSalary = config.economy.wages.defaultAmount;
-    const defaultCooldown = config.economy.wages.defaultCooldown;
+    const defaultSalary = config.economy.wages.defaultAmount ?? 50;
+    const defaultCooldown = config.economy.wages.defaultCooldown ?? 86400;
     const roleSalaries = (config.economy.wages.roleSalaries || {}) as Record<string, number | number[]>;
 
     const qualifiedWages: Array<{ roleId: string; name: string; salary: number; cooldownSeconds: number }> = [];
@@ -543,8 +543,13 @@ async function handleWage(interaction: ChatInputCommandInteraction) {
     const pendingLines: string[] = [];
     let newBalance = 0;
 
-    // Run claim check AND update within an immediate transaction lock
     await sequelize.transaction({ type: Transaction.TYPES.IMMEDIATE }, async (t) => {
+        let profile = await EconomyProfile.findOne({ where: { guildId, userId }, transaction: t });
+        if (!profile) {
+            profile = await EconomyProfile.create({ guildId, userId, balance: STARTING_BALANCE }, { transaction: t });
+        }
+
+        const legacyClaim = profile.lastWageClaim;
         const now = new Date();
         const existingClaims = await UserRoleWage.findAll({ where: { guildId, userId }, transaction: t });
         const claimMap = new Map(existingClaims.map(c => [c.roleId, c.lastClaim]));
@@ -552,7 +557,8 @@ async function handleWage(interaction: ChatInputCommandInteraction) {
         const rolesToUpdate: string[] = [];
 
         for (const wage of qualifiedWages) {
-            const lastClaim = claimMap.get(wage.roleId);
+            // Fallback to legacy single-cooldown record if UserRoleWage is missing for this role
+            const lastClaim = claimMap.get(wage.roleId) ?? legacyClaim;
             const cooldownMs = wage.cooldownSeconds * 1000;
 
         if (!lastClaim || (now.getTime() - lastClaim.getTime() >= cooldownMs)) {
@@ -573,11 +579,6 @@ async function handleWage(interaction: ChatInputCommandInteraction) {
     }
 
         if (rolesToUpdate.length > 0) {
-            let profile = await EconomyProfile.findOne({ where: { guildId, userId }, transaction: t });
-            if (!profile) {
-                profile = await EconomyProfile.create({ guildId, userId, balance: STARTING_BALANCE }, { transaction: t });
-            }
-
             await profile.increment("balance", { by: totalPayout, transaction: t });
             await profile.reload({ transaction: t });
             newBalance = profile.balance;

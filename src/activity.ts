@@ -1,0 +1,204 @@
+import express from 'express';
+import cors from 'cors';
+import { Client, TextChannel } from 'discord.js';
+import config from '../config.json.js';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import env from "env.json"
+
+export function createActivityServer(client: Client) {
+    const app = express();
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    app.use(cors());
+    app.use(express.json());
+    app.use((req, _res, next) => {
+        console.log(`[ACTIVITY BACKEND] ${req.method} ${req.url}`);
+        next();
+    });
+    // --- Helper: Permission Check ---
+    async function userHasAccess(guildId: string, userId: string): Promise<boolean> {
+        const  allowedUserIds = config.activity.allowedUserIds as string[];
+        const allowedRoleIds = config.activity.allowedRoleIds as string [];
+
+        // If both lists are empty, allow everyone
+        if (allowedUserIds.length === 0 && allowedRoleIds.length === 0) return true;
+
+        try {
+            const guild = await client.guilds.fetch(guildId);
+            const member = await guild.members.fetch(userId);
+
+            if (allowedUserIds.includes(member.id)) return true;
+
+            const memberRoles = member.roles.cache.map((r) => r.id);
+            if (allowedRoleIds.some((roleId) => memberRoles.includes(roleId))) return true;
+        } catch (err) {
+            console.error('Failed to verify user permissions:', err);
+        }
+
+        return false;
+    }
+
+    // --- 1. OAuth2 Token Exchange ---
+    app.use(express.json()); // 👈 must be BEFORE this route
+
+    app.post(['/api/token', '/token'], async (req, res) => {
+        const { code } = req.body;
+
+        if (!code) {
+            return res.status(400).json({ error: 'missing_code' });
+        }
+
+        try {
+            const response = await fetch('https://discord.com/api/oauth2/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    client_id: config.clientId || '',
+                    client_secret: env.oauth || '',
+                    grant_type: 'authorization_code',
+                    code,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                console.error('Discord token exchange failed:', response.status, data);
+                return res.status(response.status).json({ error: 'token_exchange_failed' });
+            }
+
+            res.json({ access_token: data.access_token });
+        } catch (error) {
+            console.error('Token exchange exception:', error);
+            res.status(500).json({ error: 'Failed to exchange token' });
+        }
+    });
+    app.get(['/api/config', '/config'], (_req, res) => {
+        res.json({ clientId: config.clientId });
+    });
+    // --- 2. Permission Check Endpoint ---
+    app.post(['/api/auth-check', '/auth-check'], async (req, res) => {
+        const { guildId, userId } = req.body;
+        const allowed = await userHasAccess(guildId, userId);
+        res.json({ allowed });
+    });
+
+    // --- 3. Get Text Channels for Dropdown ---
+    app.get(['/api/channels', '/channels'], async (req, res) => {
+        const guildId = req.query.guildId as string | undefined;
+        const userId  = req.query.userId  as string | undefined;
+
+        if (!guildId || !userId) {
+            return res.status(400).json({ error: 'missing guildId or userId' });
+        }
+
+        try {
+            const guild = await client.guilds.fetch(guildId);
+
+            // (1) Make sure ALL roles are cached before computing permissions.
+            //     permissionsFor walks member.roles.cache and guild.roles.cache;
+            //     if a role object isn't cached, its permissions are silently skipped.
+            await guild.roles.fetch();
+
+            const [allChannels, member] = await Promise.all([
+                guild.channels.fetch(),
+                guild.members.fetch(userId),
+            ]);
+
+            // (2) Don't use c.isSendable() — it reflects the BOT's permissions,
+            //     not the user's. Use type checks + explicit permission lookup.
+            const channels = allChannels
+                .filter((c): c is NonNullable<typeof c> => c !== null)
+                .filter((c) => c.isTextBased() && !c.isThread())
+                .filter((c) => {
+                    const perms = c.permissionsFor(member);
+                    if (!perms) return false;
+                    return perms.has('ViewChannel') && perms.has('SendMessages');
+                })
+                .map((c) => ({ id: c.id, name: c.name }))
+                .sort((a, b) => a.name.localeCompare(b.name));
+
+            // (3) Log the outcome so you can tell what's happening server-side.
+            console.log(`[channels] guild=${guildId} user=${userId} → ${channels.length} of ${allChannels.size} visible`);
+
+            res.json(channels);
+        } catch (error) {
+            console.error('channels fetch failed:', error);
+            res.status(500).json({ error: 'Failed to fetch channels' });
+        }
+    });
+
+    // --- 4. Send Webhook & Optionally Purge Past Webhook Messages ---
+    app.post(['/api/send-webhook', '/send-webhook'], async (req, res) => {
+        const { guildId, channelId, userId, payload, deletePrevious } = req.body;
+
+        // Check permissions
+        const allowed = await userHasAccess(guildId, userId);
+        if (!allowed) {
+            return res.status(403).json({ error: 'Access denied: You do not have permission to use this Activity.' });
+        }
+
+        try {
+            const channel = (await client.channels.fetch(channelId)) as TextChannel;
+            if (!channel || !channel.isTextBased()) {
+                return res.status(400).json({ error: 'Invalid channel selected.' });
+            }
+
+            // Check if a webhook managed by this bot already exists, or create one
+            const webhooks = await channel.fetchWebhooks();
+            let webhook = webhooks.find((wh) => wh.owner?.id === client.user?.id);
+
+            if (!webhook) {
+                webhook = await channel.createWebhook({
+                    name: 'Activity Webhook',
+                    avatar: client.user?.displayAvatarURL(),
+                });
+            }
+
+            // Purge past messages sent by this webhook if checked
+            if (deletePrevious) {
+                try {
+                    const recentMessages = await channel.messages.fetch({ limit: 100 });
+                    const webhookMessages = recentMessages.filter((m) => m.webhookId === webhook!.id);
+
+                    if (webhookMessages.size > 0) {
+                        // Bulk delete messages under 14 days old; fallback to individual delete
+                        await channel.bulkDelete(webhookMessages, true).catch(async () => {
+                            for (const [, msg] of webhookMessages) {
+                                await msg.delete().catch(() => {});
+                            }
+                        });
+                    }
+                } catch (purgeError) {
+                    console.warn('Could not purge previous messages:', purgeError);
+                }
+            }
+
+            // Send the webhook payload
+            await webhook.send({
+                username:   payload.username,
+                avatarURL:  payload.avatar_url,   // ← this is the fix
+                content:    payload.content,
+                embeds:     payload.embeds,
+                tts:        payload.tts,
+            });
+            res.json({ success: true, webhookUrl: webhook.url });
+        } catch (error: any) {
+            console.error('Webhook dispatch error:', error);
+            res.status(500).json({ error: error.message || 'Failed to dispatch webhook' });
+        }
+    });
+
+    // Static Assets
+    app.get('/', (_req, res) => {
+        res.json({ status: 'online', message: 'Peanut Activity API' });
+    });
+
+    // Catch-all 404 for missing API routes
+    app.use((_req, res) => {
+        res.status(404).json({ error: 'Endpoint not found' });
+    });
+
+    return app;
+}

@@ -1,4 +1,4 @@
-import type { Cmd, Ctx } from "../../../utilsbase";
+import type { Cmd, Ctx } from "~/util/base.ts";
 
 const countTagsCommand: Cmd = {
   data: {

@@ -57,14 +57,14 @@ Are you sure you want to ping support?
         "# [Click here to report a ](<https://github.com/amblelabs/stargate/issues/new?template=1-bug-report.yaml>)<:al_stargate:1504663279421882378>[ Stargate bug](<https://github.com/amblelabs/stargate/issues/new?template=1-bug-report.yaml>)",
       wiki: "# <:al_logo:1492686347666980944>[ AmbleLabs Wiki](https://amblelabs.dev/wiki/)",
       eta: `
-There's no ETA. The mod will be out when it's out.
+There's no ETA. All mods (depending on what you mean) will be out when it's out.
 Check the <#1213995158178242631> channel for public WIP posts.
 
-Consider donating to one of the following people:
-- [Theo](<https://boosty.to/dr.theo>)
-- [Loqor](<https://ko-fi.com/loqor>)
-- [Classic](<https://ko-fi.com/redpanda39441>)
-...or the discord server shop to access donator exclsusive WIP posts & releases and to help support our projects.
+If you want to become a Donator and have access to beta builds of our mods (including In Brightest Day), donate here:
+https://discord.com/channels/1213989169878274068/shop
+and if you can't through Discord, here:
+<https://ko-fi.com/loqor>
+<https://boosty.to/dr.theo>
       `,
     },
   },
@@ -93,6 +93,11 @@ Consider donating to one of the following people:
       enabled: true,
       channel: "1213989171241426954",
       role: "1325521300860567683",
+      files: [
+        "http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/peanut_meow_1.webm",
+        "http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/peanut_meow_2.webm",
+        "http://raw.githubusercontent.com/amblelabs/peanutbot/master/assets/peanut_meow_night.webm",
+      ],
       min: 60*3,
       max: 60*6,
     },
@@ -145,6 +150,11 @@ Consider donating to one of the following people:
       "https://raw.githubusercontent.com/amblelabs/peanutbot/refs/heads/master/assets/gemini.webp",
     claude:
       "https://raw.githubusercontent.com/amblelabs/peanutbot/refs/heads/master/assets/claude.webp",
+    correction:{
+      loqor: "loqueer",
+      Loqor: "Loqueer"
+    },
+    realCorrection: "1563214721132400720"
   },
   arguing: {
     channel: "1213989170964340883",
@@ -315,4 +325,14 @@ Consider donating to one of the following people:
       "<a:al_explosion:1467652202356150272>": ":01KVAMF92JKDHM19513A2J82JG:",
     },
   },
+  activity:{
+    allowedRoleIds:["1262622636819877919" ],
+    allowedUserIds:["368694479391293442", "1257750834150637599"],
+  },
+  auto:{
+    promo:{
+      message: "Peanut is currently hosted on [RNSHosting](https://rnshosting.xyz).\n Get fairly priced game servers today!",
+      channel: "1213989171241426954"
+    }
+  }
 };

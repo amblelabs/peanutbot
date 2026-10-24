@@ -18,6 +18,8 @@ import { logger } from "./util/logger.ts";
 import { Sequelize } from "sequelize";
 import { oramaStaticClient } from "./util/wikisearch2.ts";
 import { create as createOrama } from "@orama/orama";
+import {createActivityServer} from "~/activity.ts";
+import promo from "src/commands/auto/promo.ts"
 
 // Create a new client instance
 const dbPath = path.resolve(__dirname, "../database.sqlite");
@@ -29,6 +31,7 @@ const ctx: Ctx = {
       GatewayIntentBits.GuildMembers,
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
+      GatewayIntentBits.GuildVoiceStates,
     ],
   }),
   sql: new Sequelize({
@@ -90,6 +93,7 @@ ctx.client.once(Events.ClientReady, async (readyClient) => {
   ctx.wakeUp();
 
   logger.info(`Ready! Logged in as ${readyClient.user.tag}`);
+  await promo(ctx.client)
 });
 
 const handlers: Dict<Cmd> = {};
@@ -246,6 +250,12 @@ process.on("unhandledRejection", (err) => {
 
 setInterval(tickMinute, 60 * 1000); // every minute
 setInterval(tickSleepSticker, 60 * 61 * 1000); // every hour
+
+const PORT = Number(process.env.PORT) || 7681;
+const app = createActivityServer(ctx.client);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Port is ${PORT}`);
+});
 
 // Log in to Discord with your client's token
 ctx.client.login(env.token);

@@ -127,7 +127,7 @@ async function onInteraction(ctx: Ctx, interaction: Interaction) {
     }
   } else if (interaction.isButton()) {
     if (interaction.customId === "support:ping/confirm") {
-      const ogReply = `<@&${config.support.role}>`;
+      const ogReply = `<@&${config.support.role}> by <@${interaction.user.id}>`;
 
       if (interaction.message.reference) {
         const ref = await interaction.message.fetchReference();

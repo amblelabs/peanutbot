@@ -275,7 +275,7 @@ and if you can't through Discord, here:
       defaultCooldown: 86400,
       roleSalaries: {
         "1262624821582364703": [500, 60],
-
+        "1510625457219965029": [5, 86400],
       }
     },
     transfer:{

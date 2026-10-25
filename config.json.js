@@ -154,7 +154,7 @@ and if you can't through Discord, here:
       loqor: "loqueer",
       Loqor: "Loqueer"
     },
-    realCorrection: "1563214721132400720"
+    realCorrection: "1563954882971701258"
   },
   arguing: {
     channel: "1213989170964340883",

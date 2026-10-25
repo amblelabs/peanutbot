@@ -27,7 +27,7 @@ async function onMessage(ctx: Ctx, message: Message) {
             return;
         }
 
-        const noUpdates = c.includes("no updates") || c.includes("release was") || c.includes("update was");
+        const noUpdates = c.includes("no updates") || c.includes("release was") || c.includes("update was") || (c.includes("update") && c.includes("when"));
 
         if (noUpdates) {
             message.reply(rnd.pickRandom(config.fun.blame.noUpdates));

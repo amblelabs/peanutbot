@@ -134,6 +134,7 @@ and if you can't through Discord, here:
       ],
       noUpdates: [
         "https://cdn.discordapp.com/attachments/865737835973312532/1346364113294721115/togif.gif?ex=69ad12ca&is=69abc14a&hm=674476d6de2e0743ed68578cbbef5f4d2b56371ec0ff582effe6fb2eece32ee3",
+        "https://cdn.discordapp.com/attachments/933584423029456946/1532116810491760660/attachment-2.gif?ex=6adfb278&is=6ade60f8&hm=4a6a56ae8c6f6ca22399c5a9f7a76dcea662ddffe52a5311a4edcd57dfe92eaa"
       ],
     },
     peanuts: [

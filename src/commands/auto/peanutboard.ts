@@ -22,7 +22,7 @@ export default {
         if (message.author && message.author.id === user.id) {
             return;
         }
-        if (message.author?.bot) {
+        if (message.channelId === config.fun.peanutboard.channel) {
             return;
         }
 
@@ -49,7 +49,7 @@ export default {
                         const replyEmbed = new EmbedBuilder()
                             .setColor('#5a4c45') // Dark subtle color to represent a reply context
                             .setAuthor({
-                                name: `${repliedMessage.author?.tag || "Unknown User"}`,
+                                name: `Replying to ${repliedMessage.author?.tag || "Unknown User"}`,
                                 iconURL: repliedMessage.author?.displayAvatarURL({ forceStatic: false })
                             })
                             .setDescription(repliedMessage.content|| null)
@@ -103,7 +103,7 @@ export default {
         if (message.author && message.author.id === user.id) {
             return;
         }
-        if (message.author?.bot) {
+        if (message.channelId === config.fun.peanutboard.channel) {
             return;
         }
 
@@ -131,7 +131,6 @@ export default {
         // 4. CASE B: Count dropped but stays qualified -> Update counter label live
         else {
             try {
-                // Edit existing message context, preserving the attached embeds array array completely intact
                 await existingMessage.edit({
                     content: format(config.fun.peanutboard.message, { count: reaction.count, url: message.url }),
                     embeds: existingMessage.embeds

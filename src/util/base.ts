@@ -1,10 +1,13 @@
-import type {
-  Client,
-  Interaction,
-  Message,
-  SendableChannels,
-  SharedSlashCommand,
-  SlashCommandBuilder,
+import {
+  type Client,
+  type Interaction,
+  type Message,
+  MessageReaction,
+  Partials,
+  type SendableChannels,
+  type SharedSlashCommand,
+  type SlashCommandBuilder,
+  type User,
 } from "discord.js";
 import type { Sequelize } from "sequelize";
 import type { SearchClient } from "./wikisearch2";
@@ -24,6 +27,8 @@ export type Cmd = {
   ) => Promise<void> | void;
   onInteraction?: (ctx: Ctx, interaction: Interaction) => Promise<void> | void;
   onMessage?: (ctx: Ctx, message: Message) => Promise<void> | void;
+  onMessageReactionAdd?: (ctx: Ctx, reaction: MessageReaction, user: User) => Promise<void> | void;
+  onMessageReactionRemove?: (ctx: Ctx, reaction: MessageReaction, user: User) => Promise<void> | void;
   slash?: (builder: SlashCommandBuilder) => SharedSlashCommand;
 };
 

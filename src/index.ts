@@ -5,6 +5,8 @@ import {
   GatewayIntentBits,
   Message,
   MessageComponentInteraction,
+  type MessageReaction,
+  Partials,
   REST,
   Routes,
   SlashCommandBuilder,
@@ -30,9 +32,11 @@ const ctx: Ctx = {
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMembers,
       GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.GuildMessageReactions,
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.GuildVoiceStates,
     ],
+    partials: [Partials.Message, Partials.Reaction, Partials.User],
   }),
   sql: new Sequelize({
     dialect: "sqlite",
@@ -217,6 +221,80 @@ ctx.client.on(Events.InteractionCreate, async (interaction) => {
 
   let handler = handlers[handlerId];
   if (handler?.onInteraction) handler.onInteraction(ctx, interaction);
+});
+
+ctx.client.on(Events.MessageReactionAdd, async (reaction, user) => {
+  if (reaction.partial) {
+    try {
+      await reaction.fetch();
+    } catch (error) {
+      logger.error(`Failed to fetch reaction partial details: ${error}`);
+      return;
+    }
+  }
+
+  // Ensure we pass a complete User object if it started as an uncached partial
+  if (user.partial) {
+    try {
+      user = await user.fetch();
+    } catch (error) {
+      logger.error(`Failed to fetch user partial details: ${error}`);
+      return;
+    }
+  }
+  //unsleeps
+  ctx.lastUse = Date.now();
+  if (ctx.sleeping) {
+    ctx.wakeUp();
+  }
+
+  // Dispatches event data across all commands implementing the reaction hook
+  for (const handler of Object.values(handlers)) {
+    if (handler?.onMessageReactionAdd) {
+      try {
+        await handler.onMessageReactionAdd(ctx, reaction as MessageReaction, user);
+      } catch (error) {
+        logger.error(`Error executing reaction hook in command "${handler.data.name}":`, error);
+      }
+    }
+  }
+});
+
+ctx.client.on(Events.MessageReactionRemove, async (reaction, user) => {
+  if (reaction.partial) {
+    try {
+      await reaction.fetch();
+    } catch (error) {
+      logger.error(`Failed to fetch reaction partial details: ${error}`);
+      return;
+    }
+  }
+
+  // Ensure we pass a complete User object if it started as an uncached partial
+  if (user.partial) {
+    try {
+      user = await user.fetch();
+    } catch (error) {
+      logger.error(`Failed to fetch user partial details: ${error}`);
+      return;
+    }
+  }
+  //unsleeps
+  ctx.lastUse = Date.now();
+  if (ctx.sleeping) {
+    ctx.wakeUp();
+  }
+
+  // Dispatches event data across all commands implementing the reaction hook
+  for (const handler of Object.values(handlers)) {
+    if (handler?.onMessageReactionRemove) {
+      try {
+        await handler.onMessageReactionRemove(ctx, reaction as MessageReaction, user);
+      } catch (error) {
+        logger.error(`Error executing reaction remove hook in command "${handler.data.name}":`, error);
+      }
+    }
+  }
 });
 
 function tickMinute() {

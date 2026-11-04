@@ -155,7 +155,13 @@ and if you can't through Discord, here:
       loqor: "loqueer",
       Loqor: "Loqueer"
     },
-    realCorrection: "1563954882971701258"
+    realCorrection: "1563954882971701258",
+    peanutboard:{
+      channel: "1567529417918382181",
+      emoji: "1388592056385147010",
+      limit: 10,
+      message: "<:al_peanut:1388592056385147010> **{count} | {url}**"
+    }
   },
   arguing: {
     channel: "1213989170964340883",

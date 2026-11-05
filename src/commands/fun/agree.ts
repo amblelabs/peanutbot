@@ -13,7 +13,7 @@ async function onMessage(ctx: Ctx, message: Message) {
 
   let content = message.content.toLowerCase();
 
-  if (content.includes("?") && content.includes("agree"))
+  if (content.includes("agree"))
     message.reply(rnd.pickRandom(config.fun.agree));
 }
 

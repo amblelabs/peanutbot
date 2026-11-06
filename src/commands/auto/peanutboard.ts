@@ -1,6 +1,6 @@
 import {type Cmd, type Ctx, format} from "~/util/base.ts";
 import config from "config.json"
-import {MessageReaction, EmbedBuilder, type User} from "discord.js";
+import {MessageReaction, EmbedBuilder, type User, AttachmentBuilder} from "discord.js";
 
 export default {
     data: { name: "peanutboard" },
@@ -39,26 +39,37 @@ export default {
             const embedsArray: EmbedBuilder[] = [];
 
             // --- REPLY HANDLING BLOCK ---
-            // Check if this message is a reply to someone else
             if (message.reference && message.reference.messageId) {
                 try {
-                    // Fetch the original message being replied to
                     const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
-
                     if (repliedMessage) {
+                        let replyText = repliedMessage.content || "";
+
+                        // Append sticker name if present
+                        if (repliedMessage.stickers.size > 0) {
+                            replyText += `\n*Sticker: ${repliedMessage.stickers.first()?.name}*`;
+                        }
+
+                        // Append non-image attachments as download links
+                        const nonImageAttachments = repliedMessage.attachments.filter(att => !att.contentType?.startsWith("image/"));
+                        if (nonImageAttachments.size > 0) {
+                            replyText += "\n" + nonImageAttachments.map(att => `📎 [${att.name}](${att.url})`).join("\n");
+                        }
+
                         const replyEmbed = new EmbedBuilder()
-                            .setColor('#5a4c45') // Dark subtle color to represent a reply context
+                            .setColor('#5a4c45')
                             .setAuthor({
                                 name: `Replying to ${repliedMessage.author?.tag || "Unknown User"}`,
                                 iconURL: repliedMessage.author?.displayAvatarURL({ forceStatic: false })
                             })
-                            .setDescription(repliedMessage.content|| null)
-                            .setTimestamp(repliedMessage.createdAt)
+                            .setDescription(replyText.trim() || null)
+                            .setTimestamp(repliedMessage.createdAt);
 
                         const replyImage =
                             repliedMessage.attachments.first()?.url ||
                             repliedMessage.embeds.find(e => e.image?.url)?.image?.url ||
-                            repliedMessage.embeds.find(e => e.thumbnail?.url)?.thumbnail?.url;
+                            repliedMessage.embeds.find(e => e.thumbnail?.url)?.thumbnail?.url ||
+                            repliedMessage.stickers.first()?.url;
 
                         if (replyImage) replyEmbed.setImage(replyImage);
                         embedsArray.push(replyEmbed);
@@ -69,19 +80,33 @@ export default {
             }
 
             // --- MAIN EMBED ---
+            let mainText = message.content || "";
+
+            // Append sticker name if present
+            if (message.stickers.size > 0) {
+                mainText += `\n*Sticker: ${message.stickers.first()?.name}*`;
+            }
+
+            // Append non-image attachments as download links
+            const mainNonImageAttachments = message.attachments.filter(att => !att.contentType?.startsWith("image/"));
+            if (mainNonImageAttachments.size > 0) {
+                mainText += "\n" + mainNonImageAttachments.map(att => `📎 [${att.name}](${att.url})`).join("\n");
+            }
+
             const mainEmbed = new EmbedBuilder()
                 .setColor('#fd8a00')
                 .setAuthor({
                     name: message.author?.tag || "Unknown User",
                     iconURL: message.author?.displayAvatarURL({ forceStatic: false })
                 })
-                .setDescription(message.content||null)
-                .setTimestamp(message.createdAt)
+                .setDescription(mainText.trim() || null)
+                .setTimestamp(message.createdAt);
 
             const image =
                 message.attachments.first()?.url ||
                 message.embeds.find(e => e.image?.url)?.image?.url ||
-                message.embeds.find(e => e.thumbnail?.url)?.thumbnail?.url;
+                message.embeds.find(e => e.thumbnail?.url)?.thumbnail?.url ||
+                message.stickers.first()?.url;
 
             if (image) mainEmbed.setImage(image);
             embedsArray.push(mainEmbed);

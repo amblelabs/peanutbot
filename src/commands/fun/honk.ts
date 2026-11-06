@@ -102,7 +102,7 @@ async function execute(
 }
 
 function slash(builder: SlashCommandBuilder): SharedSlashCommand {
-    return builder.setDescription("Joins voice, plays audio, and disconnects after 10 minutes of text activity silence.");
+    return builder.setDescription("HONKS");
 }
 
 async function onInteraction(_ctx: Ctx, interaction: Interaction) {

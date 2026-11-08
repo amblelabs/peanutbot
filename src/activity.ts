@@ -195,43 +195,6 @@ export function createActivityServer(client: Client) {
         res.json({ status: 'online', message: 'Peanut Activity API' });
     });
 
-    // Example endpoint: GET /file/:channelId/:messageId
-app.get('/file/:channelId/:messageId', async (req, res) => {
-  const { channelId, messageId } = req.params;
-
-  try {
-    // 1. Fetch the channel and the specific message using the bot.
-    const channel = await client.channels.fetch(channelId);
-    const message = await channel.messages.fetch(messageId);
-
-    // 2. Check if the message has an attachment.
-    const attachment = message.attachments.first();
-    if (!attachment) {
-      return res.status(404).send('No attachment found on this message.');
-    }
-
-    // 3. Fetch the file from the Discord CDN.
-    // Using the `proxyURL` is often more reliable as it can remain valid 
-    // even after the message is deleted.
-    const response = await attachment.fetch();
-
-    if (!response.ok) {
-      return res.status(response.status).send('Failed to fetch file from Discord.');
-    }
-
-    // 4. Stream the response back to the user with download headers.
-    res.setHeader('Content-Disposition', `attachment; filename="${attachment.name}"`);
-    res.setHeader('Content-Type', attachment.contentType || 'application/octet-stream');
-    
-    // Pipe the stream from Discord directly to the user.
-    response.body.pipe(res);
-    
-  } catch (error) {
-    console.error(error);
-    res.status(500).send('Internal Server Error');
-  }
-});
-
     // Catch-all 404 for missing API routes
     app.use((_req, res) => {
         res.status(404).json({ error: 'Endpoint not found' });

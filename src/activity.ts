@@ -213,7 +213,7 @@ app.get('/file/:channelId/:messageId', async (req, res) => {
     // 3. Fetch the file from the Discord CDN.
     // Using the `proxyURL` is often more reliable as it can remain valid 
     // even after the message is deleted.
-    const response = await fetch(attachment.proxyURL);
+    const response = await attachment.fetch();
 
     if (!response.ok) {
       return res.status(response.status).send('Failed to fetch file from Discord.');

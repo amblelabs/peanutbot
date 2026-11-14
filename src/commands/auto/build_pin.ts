@@ -263,11 +263,13 @@ export default {
         );
     },
 
-    onMessage: async (ctx: Ctx, message: Message) => {
-        try {
-            await evaluateAndPinMessage(message);
-        } catch (error) {
-            console.error(`❌ AutoPin Listener Error:`, error);
-        }
+  onMessage: async (ctx: Ctx, message: Message) => {
+    if (message.channelId != "1253351515305807914" && message.channelId != "1565662969101025370")
+      return;
+    try {
+        await evaluateAndPinMessage(message);
+      } catch (error) {
+        console.error(`❌ AutoPin Listener Error:`, error);
+      }
     },
 } as Cmd;

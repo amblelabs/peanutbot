@@ -503,7 +503,7 @@ async function handleWage(interaction: ChatInputCommandInteraction) {
     const userId = interaction.user.id;
     const member = interaction.member;
 
-    const defaultSalary = config.economy.wages.defaultAmount ?? 50;
+    const defaultSalary = config.economy.wages.defaultAmount ?? 5;
     const defaultCooldown = config.economy.wages.defaultCooldown ?? 86400;
     const roleSalaries = (config.economy.wages.roleSalaries || {}) as Record<string, number | number[]>;
 
